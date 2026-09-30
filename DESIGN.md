@@ -210,7 +210,10 @@ persisted contract has `schema_version`; v1 has no v0 compatibility requirement.
 - SI units; x increases down the road, y increases from lane 0 toward lane 2.
 - Lane centres: `y = lane_index * lane_width_m`.
 - Heading is radians from positive x. Vehicle positions refer to centres.
-- Stable roles identify vehicles; list order is not identity.
+- Role labels group vehicles, not unique vehicle identities. A group may have
+  multiple states; tuple order is not a persistent identifier. The MVP adapter
+  still has three named agents; per-vehicle IDs can follow when tracking multiple
+  agents within the same role across ticks is actually needed.
 - Log tick 0 and every physics step, including the terminal state. Snapshots use
   integer tick count as their authoritative timestamp; time_s = tick / physics_hz.
   Seconds remain appropriate for scenario durations, integration dt, and TTC.
@@ -219,8 +222,11 @@ persisted contract has `schema_version`; v1 has no v0 compatibility requirement.
 ### Minimal types
 
 - `VehicleState`: role, x/y, heading, speed, length/width, collision flag.
-- `StateSnapshot`: integer tick and immutable tuple of vehicle states; no generic
-  vehicle-count validation.
+- `StateSnapshot`: integer tick and read-only mapping from Role to tuples of
+  VehicleState; roles need not be unique per vehicle. No generic count validation
+  or singular vehicle lookup. Construction copies/freezes containers, without
+  domain validation. Consumers iterate a role group or use `.get(role, ())`.
+  Empty snapshots/groups are allowed; scenario topology remains a separate rule.
 - `ControlAction`: desired longitudinal acceleration and steering angle.
 - `LogEntry`: one snapshot and the actually applied, bounded actions for the
   interval ending at that snapshot (none for the initial entry).

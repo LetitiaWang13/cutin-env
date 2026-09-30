@@ -18,7 +18,7 @@ calibrated. State/log contracts may be refined by the backend integration spike.
 
 Verified for step 1:
 
-- `uv sync --locked`, 57 passing pytest cases, Ruff lint/format checks.
+- `uv sync --locked`, 58 passing pytest cases, Ruff lint/format checks.
 - Wheel and source distribution build successfully with `uv build`.
 - The wheel installs/imports in an isolated uv environment outside the repository.
 - The TOML baseline loads and round-trips through JSON-compatible values.
@@ -26,6 +26,8 @@ Verified for step 1:
   use explicit validate_scenario() before execution.
 - Actions live separately from state. Internal records have no constructor
   validation, event framework, or generic three-vehicle count constraints.
+- StateSnapshot groups states by role in tuples and copies/freezes the outer
+  mapping. Its constructor only freezes containers; it performs no domain checks.
 - State/log records remain minimal in-memory contracts. Log serialization,
   simulator settings/provenance, and fixed tick spacing belong to step 2.
 
