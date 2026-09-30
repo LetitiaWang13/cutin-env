@@ -54,9 +54,9 @@ PY
   do not perform hidden checks. Unknown fields and invalid external values fail.
 - `core/state.py`: vehicle roles/states and `StateSnapshot(tick, vehicles)`.
   Integer tick is the authoritative simulation clock; seconds = tick / physics_hz.
-  `vehicles` is a read-only role mapping to tuples, supporting multiple vehicles
-  per role. Construction copies/freezes containers, without domain validation.
-  Use `snapshot.vehicles[Role.FRONT]` or `.get(Role.FRONT, ())`, not singular lookup.
+  `vehicles` is a flat tuple, supporting multiple vehicles per role.
+  `snapshot.vehicles_for_role(Role.FRONT)` returns all matches as a tuple, or `()`.
+  Producers supply tuples; there are no container wrappers or constructor hooks.
 - `core/action.py`: acceleration/steering requests and role-keyed applied actions.
 - `core/log.py`: scenario, entries, `termination_reason` (TerminationReason enum),
   and optional diagnostic.

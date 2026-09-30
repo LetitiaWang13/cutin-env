@@ -26,8 +26,8 @@ Verified for step 1:
   use explicit validate_scenario() before execution.
 - Actions live separately from state. Internal records have no constructor
   validation, event framework, or generic three-vehicle count constraints.
-- StateSnapshot groups states by role in tuples and copies/freezes the outer
-  mapping. Its constructor only freezes containers; it performs no domain checks.
+- StateSnapshot stores a flat tuple. vehicles_for_role() returns every matching
+  vehicle as a tuple, or an empty tuple; no mapping wrapper or constructor hook.
 - State/log records remain minimal in-memory contracts. Log serialization,
   simulator settings/provenance, and fixed tick spacing belong to step 2.
 

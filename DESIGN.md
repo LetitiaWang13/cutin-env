@@ -222,11 +222,11 @@ persisted contract has `schema_version`; v1 has no v0 compatibility requirement.
 ### Minimal types
 
 - `VehicleState`: role, x/y, heading, speed, length/width, collision flag.
-- `StateSnapshot`: integer tick and read-only mapping from Role to tuples of
-  VehicleState; roles need not be unique per vehicle. No generic count validation
-  or singular vehicle lookup. Construction copies/freezes containers, without
-  domain validation. Consumers iterate a role group or use `.get(role, ())`.
-  Empty snapshots/groups are allowed; scenario topology remains a separate rule.
+- `StateSnapshot`: integer tick and flat tuple of VehicleState. Roles need not
+  be unique per vehicle. `vehicles_for_role(role)` returns every match in snapshot
+  order as a tuple, or `()` if absent. No count validation, singular lookup,
+  mapping wrapper, or constructor hook. Producers supply tuples. Empty snapshots
+  are allowed; scenario topology remains a separate rule.
 - `ControlAction`: desired longitudinal acceleration and steering angle.
 - `LogEntry`: one snapshot and the actually applied, bounded actions for the
   interval ending at that snapshot (none for the initial entry).

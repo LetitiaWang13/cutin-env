@@ -1,9 +1,7 @@
 """Normalized state records. Simulation owns their validity and integer clock."""
 
-from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import StrEnum
-from types import MappingProxyType
 
 
 class Role(StrEnum):
@@ -26,15 +24,14 @@ class VehicleState:
 
 @dataclass(frozen=True)
 class StateSnapshot:
-    """Role-grouped states at one tick; seconds = tick / physics_hz.
+    """Vehicle states at one tick; seconds = tick / physics_hz.
 
-    Each role may contain multiple vehicles. Copy and freeze the containers so
-    later producer updates cannot alter history. No domain validation here.
+    Producers supply a tuple. Vehicle count and role uniqueness are unrestricted.
     """
 
     tick: int
-    vehicles: Mapping[Role, tuple[VehicleState, ...]]
+    vehicles: tuple[VehicleState, ...]
 
-    def __post_init__(self) -> None:
-        grouped = {role: tuple(states) for role, states in self.vehicles.items()}
-        object.__setattr__(self, "vehicles", MappingProxyType(grouped))
+    def vehicles_for_role(self, role: Role) -> tuple[VehicleState, ...]:
+        """Return all matching states in snapshot order, or an empty tuple."""
+        return tuple(vehicle for vehicle in self.vehicles if vehicle.role == role)
