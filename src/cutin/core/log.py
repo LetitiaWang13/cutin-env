@@ -17,8 +17,8 @@ class Termination(StrEnum):
 
 
 @dataclass(frozen=True)
-class LogSample:
-    """Actions apply to the interval ending here; the initial sample has none."""
+class LogEntry:
+    """One snapshot and its interval's applied actions; the initial entry has none."""
 
     snapshot: Snapshot
     applied_actions: tuple[AppliedAction, ...] = ()
@@ -32,6 +32,6 @@ class SimulationLog:
     """
 
     scenario: ScenarioConfig
-    samples: tuple[LogSample, ...]
+    entries: tuple[LogEntry, ...]
     termination: Termination
     diagnostic: str | None = None

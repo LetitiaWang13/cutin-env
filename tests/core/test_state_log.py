@@ -7,7 +7,7 @@ import pytest
 from cutin.core import (
     AppliedAction,
     ControlAction,
-    LogSample,
+    LogEntry,
     Role,
     ScenarioConfig,
     SimulationLog,
@@ -46,23 +46,24 @@ def test_records_are_immutable_and_replaceable() -> None:
 
 
 def test_log_keeps_input_actions_and_integer_ticks() -> None:
-    initial = LogSample(Snapshot(0, (vehicle(),)))
-    terminal = LogSample(
+    initial = LogEntry(Snapshot(0, (vehicle(),)))
+    terminal = LogEntry(
         Snapshot(300, (vehicle(),)),
         (AppliedAction(Role.EGO, ControlAction(0, 0)),),
     )
     scenario = ScenarioConfig()
     log = SimulationLog(scenario, (initial, terminal), Termination.HORIZON)
     assert log.scenario == scenario
-    assert log.samples[0].applied_actions == ()
-    assert log.samples[-1].snapshot.tick == 300
-    assert log.samples[-1].applied_actions[0].role == Role.EGO
+    assert log.entries == (initial, terminal)
+    assert log.entries[0].applied_actions == ()
+    assert log.entries[-1].snapshot.tick == 300
+    assert log.entries[-1].applied_actions[0].role == Role.EGO
 
 
 def test_error_can_preserve_partial_history_and_diagnostic() -> None:
     log = SimulationLog(
         ScenarioConfig(),
-        (LogSample(Snapshot(0, (vehicle(),))),),
+        (LogEntry(Snapshot(0, (vehicle(),))),),
         Termination.ERROR,
         diagnostic="step failed",
     )
@@ -77,7 +78,7 @@ def test_records_have_no_implicit_validation_hooks() -> None:
         Snapshot,
         ControlAction,
         AppliedAction,
-        LogSample,
+        LogEntry,
         SimulationLog,
     ):
         assert not hasattr(record, "__post_init__")
