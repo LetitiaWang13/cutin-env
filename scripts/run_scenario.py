@@ -16,10 +16,32 @@ def main() -> None:
         "scenario", nargs="?", type=Path, default=Path("examples/baseline.toml")
     )
     parser.add_argument("--output", type=Path, help="Optional JSON log; no overwrite")
+    parser.add_argument(
+        "--render", action="store_true", help="Native highway-env window"
+    )
     args = parser.parse_args()
     scenario = ScenarioConfig.from_dict(tomllib.loads(args.scenario.read_text()))
     config = SimulatorConfig()
-    log = simulate(scenario, config)
+    if args.render:
+        from cutin.simulation.adapters.highway_env import HighwayEnvAdapter
+
+        adapter = HighwayEnvAdapter(scenario, render_mode="human")
+        print("Colors: blue=ego, green=front, orange=cut-in. Close window to cancel.")
+
+        def draw(snapshot):
+            # Human mode already renders through Gym reset/step. Do not draw
+            # each frame twice; this callback handles close/terminal hold only.
+            if adapter.episode_finished and not adapter.closed:
+                print("Run finished. Close the native window to continue.")
+                while not adapter.closed:
+                    adapter.render()
+            return not adapter.closed
+
+        log = simulate(
+            scenario, config, adapter_factory=lambda _: adapter, on_step=draw
+        )
+    else:
+        log = simulate(scenario, config)
     print("Termination:", log.termination_reason)
     print("Cut-in reference/completion ticks:", log.cut_in_report)
     if log.entries:

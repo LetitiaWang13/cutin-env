@@ -38,8 +38,8 @@ def test_exact_initial_scene(adapter: HighwayEnvAdapter) -> None:
         assert (vehicle.x_m, vehicle.y_m, vehicle.speed_mps) == (x, y, 25)
         assert (vehicle.length_m, vehicle.width_m) == (5, 2)
         assert not vehicle.collided
-    assert len(adapter._road.network.graph["start"]["end"]) == 3
-    assert len(adapter._road.vehicles) == 3
+    assert len(adapter._env.road.network.graph["start"]["end"]) == 3
+    assert len(adapter._env.road.vehicles) == 3
 
 
 @pytest.mark.parametrize("dt_s", [1 / 30, 1 / 20])

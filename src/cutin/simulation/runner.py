@@ -55,12 +55,15 @@ def simulate(
     actions: Mapping[Role, ControlAction] | None = None,
     max_steps: int | None = None,
     adapter_factory: Callable[[ScenarioConfig], SimulationAdapter] | None = None,
+    on_step: Callable[[StateSnapshot], bool | None] | None = None,
 ) -> SimulationLog:
     """Run scenario policies by default; explicit actions select raw probe mode.
 
     Generic validation, dt, actuator bounds, stop policy and log assembly live
     here. The adapter counts actual physics ticks; no second clock is maintained.
     A step failure preserves partial history as an error, never a safe outcome.
+    on_step observes initial/physics snapshots; returning False cancels the run.
+    Rendering stays outside this loop and cannot change the fixed physics dt.
     """
     validate_scenario(scenario)
     validate_simulator_config(config)
@@ -95,8 +98,13 @@ def simulate(
         settings.update(adapter.backend_settings())
         initial = adapter.snapshot()
         entries.append(LogEntry(initial))
+        cancelled = on_step is not None and on_step(initial) is False
+        if cancelled:
+            diagnostic = "cancelled by caller"
         commands = fixed_actions if fixed_actions is not None else {}
         for _ in range(min(max_steps or horizon_ticks, horizon_ticks)):
+            if cancelled:
+                break
             snapshot = entries[-1].snapshot
             if policy is not None and snapshot.tick % control_interval == 0:
                 # Every vehicle decision is computed from this same snapshot.
@@ -105,6 +113,7 @@ def simulate(
             entries.append(entry)
             if policy is not None:
                 policy.observe(entry.snapshot)
+            cancelled = on_step is not None and on_step(entry.snapshot) is False
             if any(state.collided for state in entry.snapshot.vehicles):
                 reason, diagnostic = TerminationReason.COLLISION, None
                 break
@@ -113,6 +122,9 @@ def simulate(
                 break
             if entry.snapshot.tick == horizon_ticks:
                 reason, diagnostic = TerminationReason.HORIZON, None
+                break
+            if cancelled:
+                diagnostic = "cancelled by caller"
                 break
     except Exception as error:
         reason = TerminationReason.ERROR

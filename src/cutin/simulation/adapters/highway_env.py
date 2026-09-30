@@ -1,4 +1,4 @@
-"""Lifecycle/stepping bridge to highway-env; no scheduling or generic config."""
+"""Bridge our contracts to CutInEnv's joint actions, state, and native renderer."""
 
 from collections.abc import Mapping
 from importlib.metadata import version
@@ -12,8 +12,8 @@ from cutin.core import (
     ScenarioConfig,
     StateSnapshot,
 )
+from cutin.simulation.adapters.cut_in_env import CutInEnv
 from cutin.simulation.adapters.highway_env_translation import (
-    build_scene,
     collect_snapshot,
     road_exited,
     translate_actions,
@@ -21,34 +21,34 @@ from cutin.simulation.adapters.highway_env_translation import (
 
 
 class HighwayEnvAdapter:
-    """A validated scenario becomes fresh backend objects; caller supplies dt.
+    """No SimulatorConfig dependency; the runner supplies dt and generic limits."""
 
-    Translation helpers own backend representation/limitations. The runner owns
-    frequencies, policy limits, horizon, and log assembly. No SimulatorConfig
-    dependency here, and no stock traffic, rewards, or renderer.
-    """
-
-    def __init__(self, scenario: ScenarioConfig) -> None:
+    def __init__(
+        self, scenario: ScenarioConfig, *, render_mode: str | None = None
+    ) -> None:
         self._geometry = scenario.road
-        self._road, self._vehicles = build_scene(scenario)
-        self._tick = 0
-        self._closed = False
+        self._env = CutInEnv(scenario, render_mode=render_mode)
+
+    @property
+    def closed(self) -> bool:
+        return self._env.done
+
+    @property
+    def episode_finished(self) -> bool:
+        return self._env.episode_finished
 
     def snapshot(self) -> StateSnapshot:
-        return collect_snapshot(self._vehicles, self._tick)
+        return collect_snapshot(self._env.vehicles_by_role, self._env.steps)
 
     def step(self, actions: Mapping[Role, ControlAction], dt_s: float) -> LogEntry:
-        if self._closed:
+        # Config/unit translation remains outside the native Gym environment.
+        # Check dt before translation, which uses it for backend speed bounds.
+        if self.closed:
             raise RuntimeError("adapter is closed")
         if not isfinite(dt_s) or dt_s <= 0:
             raise ValueError("dt_s must be finite and positive")
-        translated = translate_actions(actions, self._vehicles, dt_s)
-        for role, vehicle in self._vehicles.items():
-            vehicle.act(translated[role])
-        # Base Vehicle.act(None) preserves commands when Road.act runs.
-        self._road.act()
-        self._road.step(dt_s)
-        self._tick += 1
+        translated = translate_actions(actions, self._env.vehicles_by_role, dt_s)
+        self._env.step(translated, dt_s=dt_s)
         return LogEntry(
             self.snapshot(),
             tuple(
@@ -59,7 +59,7 @@ class HighwayEnvAdapter:
                         float(vehicle.action["steering"]),
                     ),
                 )
-                for role, vehicle in self._vehicles.items()
+                for role, vehicle in self._env.vehicles_by_role.items()
             ),
         )
 
@@ -69,6 +69,8 @@ class HighwayEnvAdapter:
     def backend_settings(self) -> dict[str, str]:
         return {"backend": "highway-env", "backend_version": version("highway-env")}
 
+    def render(self):
+        return self._env.render()
+
     def close(self) -> None:
-        # Road/Vehicle own no viewer, window, or external resource to tear down.
-        self._closed = True
+        self._env.close()

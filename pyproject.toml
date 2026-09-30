@@ -8,7 +8,11 @@ version = "0.1.0"
 description = "Reproducible cut-in experiments with a highway-env backend"
 readme = "README.md"
 requires-python = ">=3.11"
-dependencies = ["highway-env>=1.10.2,<2", "numpy>=2,<3"]
+dependencies = [
+  "highway-env>=1.10.2,<2",
+  "gymnasium>=1.0,<2",
+  "numpy>=2,<3",
+]
 
 [dependency-groups]
 dev = ["pytest>=8,<10", "ruff>=0.11,<1"]
