@@ -48,7 +48,7 @@ PY
 
 ## Reading the code
 
-- `core/scenario.py`: scenario records plus a single `validate_scenario()` boundary.
+- `core/scenario_config.py`: scenario records plus a single `validate_scenario()` boundary.
   `from_dict()` parses TOML/JSON values and validates automatically. Python-created
   or modified records must be validated explicitly before execution. Constructors
   do not perform hidden checks. Unknown fields and invalid external values fail.

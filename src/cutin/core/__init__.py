@@ -2,7 +2,7 @@
 
 from cutin.core.action import AppliedAction, ControlAction
 from cutin.core.log import LogEntry, SimulationLog, TerminationReason
-from cutin.core.scenario import (
+from cutin.core.scenario_config import (
     BaselinePolicy,
     CutInConfig,
     InitialConditions,

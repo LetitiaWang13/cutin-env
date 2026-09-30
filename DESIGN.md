@@ -361,7 +361,7 @@ src/cutin/
   __init__.py               # Package metadata; no eager backend imports
   core/
     __init__.py
-    scenario.py             # ScenarioConfig and validation
+    scenario_config.py      # ScenarioConfig and validation
     state.py                # StateSnapshot(tick, vehicles), VehicleState
     action.py               # ControlAction, AppliedAction
     log.py                  # Small SimulationLog and termination records
@@ -457,7 +457,7 @@ an engine that runs everything. It contains data contracts and their invariants:
 
 | Module | Content | Example question answered |
 | --- | --- | --- |
-| `scenario.py` | ScenarioConfig, road/vehicle/initial-state/cut-in records, validation | What experiment should every component agree on? |
+| `scenario_config.py` | ScenarioConfig, road/vehicle/initial-state/cut-in records, validation | What experiment should every component agree on? |
 | `state.py` | Stable vehicle roles, VehicleState, StateSnapshot with integer ticks | What is the world state at one instant? |
 | `action.py` | ControlAction and role-keyed AppliedAction | What action was requested/applied? |
 | `log.py` | LogEntry, SimulationLog, TerminationReason and diagnostic | What actually happened during this run? |

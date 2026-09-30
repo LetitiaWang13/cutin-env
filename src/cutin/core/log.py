@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 
 from cutin.core.action import AppliedAction
-from cutin.core.scenario import ScenarioConfig
+from cutin.core.scenario_config import ScenarioConfig
 from cutin.core.state import StateSnapshot
 
 
