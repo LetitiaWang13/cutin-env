@@ -1,7 +1,8 @@
-"""Concrete, simulator-independent scenarios and explicit JSON validation.
+"""Scenario records and validation at the input/execution boundary.
 
-Defaults are illustrative. A scenario contains no search ranges or backend
-settings. Initial positions are vehicle centres; all values use SI units.
+Defaults are illustrative. Constructing a record does not run validation;
+from_dict() validates external input, and validate_scenario() checks scenarios
+created or modified by Python callers before execution.
 """
 
 from dataclasses import asdict, dataclass, field
@@ -11,44 +12,27 @@ from typing import Any
 from cutin.core._validation import integer, number, positive
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class RoadConfig:
     lane_count: int = 3
     lane_width_m: float = 4.0
     length_m: float = 2000.0
 
-    def __post_init__(self) -> None:
-        if type(self.lane_count) is not int or self.lane_count != 3:
-            raise ValueError("lane_count must be 3 for the MVP")
-        positive("lane_width_m", self.lane_width_m)
-        positive("length_m", self.length_m)
 
-
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class VehicleDimensions:
     length_m: float = 5.0
     width_m: float = 2.0
 
-    def __post_init__(self) -> None:
-        positive("vehicle length_m", self.length_m)
-        positive("vehicle width_m", self.width_m)
 
-
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class InitialVehicle:
     x_m: float
     lane: int
     speed_mps: float
 
-    def __post_init__(self) -> None:
-        number("x_m", self.x_m)
-        integer("lane", self.lane)
-        if self.lane not in (0, 1, 2):
-            raise ValueError("lane must be 0, 1, or 2")
-        number("speed_mps", self.speed_mps, minimum=0)
 
-
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class InitialConditions:
     ego: InitialVehicle = field(default_factory=lambda: InitialVehicle(50.0, 1, 25.0))
     front: InitialVehicle = field(
@@ -58,52 +42,26 @@ class InitialConditions:
         default_factory=lambda: InitialVehicle(65.0, 0, 25.0)
     )
 
-    def __post_init__(self) -> None:
-        for name in ("ego", "front", "cut_in"):
-            if not isinstance(getattr(self, name), InitialVehicle):
-                raise ValueError(f"initial.{name} must be an InitialVehicle")
-        if (self.ego.lane, self.front.lane, self.cut_in.lane) != (1, 1, 0):
-            raise ValueError("ego/front must start in lane 1 and cut_in in lane 0")
-        if self.front.x_m <= self.ego.x_m:
-            raise ValueError("front must start ahead of ego")
 
-
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class BaselinePolicy:
-    """Fixed car-following targets; implementation is added in the control step."""
-
     desired_speed_mps: float = 25.0
     time_headway_s: float = 1.5
     minimum_gap_m: float = 2.0
     max_acceleration_mps2: float = 2.0
     max_braking_mps2: float = 6.0
 
-    def __post_init__(self) -> None:
-        number("desired_speed_mps", self.desired_speed_mps, minimum=0)
-        for name in (
-            "time_headway_s",
-            "minimum_gap_m",
-            "max_acceleration_mps2",
-            "max_braking_mps2",
-        ):
-            positive(name, getattr(self, name))
 
-
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class CutInConfig:
-    """Timed lane-0-to-lane-1 reference; no relative-position preparation."""
+    """Timed merge; start_time_s begins lateral motion, not preparation."""
 
     start_time_s: float = 2.0
     target_speed_mps: float = 25.0
     lane_change_duration_s: float = 2.0
 
-    def __post_init__(self) -> None:
-        number("start_time_s", self.start_time_s, minimum=0)
-        number("target_speed_mps", self.target_speed_mps, minimum=0)
-        positive("lane_change_duration_s", self.lane_change_duration_s)
 
-
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class ScenarioConfig:
     schema_version: int = 1
     seed: int = 42
@@ -114,45 +72,15 @@ class ScenarioConfig:
     baseline_policy: BaselinePolicy = field(default_factory=BaselinePolicy)
     cut_in: CutInConfig = field(default_factory=CutInConfig)
 
-    def __post_init__(self) -> None:
-        if type(self.schema_version) is not int or self.schema_version != 1:
-            raise ValueError("unsupported scenario schema_version")
-        integer("seed", self.seed)
-        positive("duration_s", self.duration_s)
-        for name, expected in (
-            ("road", RoadConfig),
-            ("initial", InitialConditions),
-            ("vehicles", VehicleDimensions),
-            ("baseline_policy", BaselinePolicy),
-            ("cut_in", CutInConfig),
-        ):
-            if not isinstance(getattr(self, name), expected):
-                raise ValueError(f"{name} must be a {expected.__name__}")
-
-        if self.road.lane_width_m < self.vehicles.width_m:
-            raise ValueError("vehicle width must fit within a lane")
-        states = (self.initial.ego, self.initial.front, self.initial.cut_in)
-        half_length = self.vehicles.length_m / 2
-        for state in states:
-            if not half_length <= state.x_m <= self.road.length_m - half_length:
-                raise ValueError("initial vehicle footprint must be inside the road")
-        for a, b in combinations(states, 2):
-            if (
-                abs(a.x_m - b.x_m) <= self.vehicles.length_m
-                and abs(a.lane - b.lane) * self.road.lane_width_m
-                <= self.vehicles.width_m
-            ):
-                raise ValueError("initial vehicle footprints overlap or touch")
-
     def to_dict(self) -> dict[str, Any]:
-        """Return plain JSON values with every default expanded."""
+        """Expand defaults into plain values suitable for JSON output."""
         return asdict(self)
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "ScenarioConfig":
-        """Validate a JSON object; reject unknown fields at every level."""
+        """Parse TOML/JSON values, reject unknown fields, and validate once."""
         if not isinstance(data, dict):
-            raise ValueError("scenario must be a JSON object")
+            raise ValueError("scenario must be a mapping")
         values = dict(data)
         constructors = {
             "road": RoadConfig,
@@ -164,18 +92,84 @@ class ScenarioConfig:
             for name, constructor in constructors.items():
                 if name in values:
                     if not isinstance(values[name], dict):
-                        raise ValueError(f"{name} must be a JSON object")
+                        raise ValueError(f"{name} must be a mapping")
                     values[name] = constructor(**values[name])
             if "initial" in values:
                 if not isinstance(values["initial"], dict):
-                    raise ValueError("initial must be a JSON object")
+                    raise ValueError("initial must be a mapping")
                 initial = dict(values["initial"])
                 for role in ("ego", "front", "cut_in"):
                     if role in initial:
                         if not isinstance(initial[role], dict):
-                            raise ValueError(f"initial.{role} must be a JSON object")
+                            raise ValueError(f"initial.{role} must be a mapping")
                         initial[role] = InitialVehicle(**initial[role])
                 values["initial"] = InitialConditions(**initial)
-            return cls(**values)
+            scenario = cls(**values)
         except TypeError as exc:
             raise ValueError(f"invalid scenario fields: {exc}") from exc
+        validate_scenario(scenario)
+        return scenario
+
+
+def validate_scenario(scenario: ScenarioConfig) -> None:
+    """Check input once; three-vehicle restrictions belong only to this MVP scene."""
+    if not isinstance(scenario, ScenarioConfig):
+        raise ValueError("scenario must be a ScenarioConfig")
+    for name, expected in (
+        ("road", RoadConfig),
+        ("initial", InitialConditions),
+        ("vehicles", VehicleDimensions),
+        ("baseline_policy", BaselinePolicy),
+        ("cut_in", CutInConfig),
+    ):
+        if not isinstance(getattr(scenario, name), expected):
+            raise ValueError(f"{name} must be a {expected.__name__}")
+    if type(scenario.schema_version) is not int or scenario.schema_version != 1:
+        raise ValueError("unsupported scenario schema_version")
+    integer("seed", scenario.seed)
+    positive("duration_s", scenario.duration_s)
+    road, dimensions = scenario.road, scenario.vehicles
+    integer("lane_count", road.lane_count)
+    if road.lane_count != 3:
+        raise ValueError("lane_count must be 3 for the MVP")
+    positive("lane_width_m", road.lane_width_m)
+    positive("road length_m", road.length_m)
+    positive("vehicle length_m", dimensions.length_m)
+    positive("vehicle width_m", dimensions.width_m)
+    if road.lane_width_m < dimensions.width_m:
+        raise ValueError("vehicle width must fit within a lane")
+
+    initial = scenario.initial
+    states = (initial.ego, initial.front, initial.cut_in)
+    for name, state in zip(("ego", "front", "cut_in"), states, strict=True):
+        if not isinstance(state, InitialVehicle):
+            raise ValueError(f"initial.{name} must be an InitialVehicle")
+        number(f"initial.{name}.x_m", state.x_m)
+        integer(f"initial.{name}.lane", state.lane)
+        number(f"initial.{name}.speed_mps", state.speed_mps, minimum=0)
+        half_length = dimensions.length_m / 2
+        if not half_length <= state.x_m <= road.length_m - half_length:
+            raise ValueError("initial vehicle footprint must be inside the road")
+    if (initial.ego.lane, initial.front.lane, initial.cut_in.lane) != (1, 1, 0):
+        raise ValueError("ego/front must start in lane 1 and cut_in in lane 0")
+    if initial.front.x_m <= initial.ego.x_m:
+        raise ValueError("front must start ahead of ego")
+    for a, b in combinations(states, 2):
+        if (
+            abs(a.x_m - b.x_m) <= dimensions.length_m
+            and abs(a.lane - b.lane) * road.lane_width_m <= dimensions.width_m
+        ):
+            raise ValueError("initial vehicle footprints overlap or touch")
+
+    policy, cut_in = scenario.baseline_policy, scenario.cut_in
+    number("desired_speed_mps", policy.desired_speed_mps, minimum=0)
+    for name in (
+        "time_headway_s",
+        "minimum_gap_m",
+        "max_acceleration_mps2",
+        "max_braking_mps2",
+    ):
+        positive(name, getattr(policy, name))
+    number("start_time_s", cut_in.start_time_s, minimum=0)
+    number("target_speed_mps", cut_in.target_speed_mps, minimum=0)
+    positive("lane_change_duration_s", cut_in.lane_change_duration_s)

@@ -1,12 +1,7 @@
-"""Shared domain records; no algorithms, file I/O, or backend imports."""
+"""Shared records and boundary validation; no file I/O or backend imports."""
 
-from cutin.core.log import (
-    EventKind,
-    LogSample,
-    SimulationEvent,
-    SimulationLog,
-    Termination,
-)
+from cutin.core.action import AppliedAction, ControlAction
+from cutin.core.log import LogSample, SimulationLog, Termination
 from cutin.core.scenario import (
     BaselinePolicy,
     CutInConfig,
@@ -15,25 +10,25 @@ from cutin.core.scenario import (
     RoadConfig,
     ScenarioConfig,
     VehicleDimensions,
+    validate_scenario,
 )
-from cutin.core.state import AppliedAction, ControlAction, Role, Snapshot, VehicleState
+from cutin.core.state import Role, Snapshot, VehicleState
 
 __all__ = [
     "AppliedAction",
     "BaselinePolicy",
     "ControlAction",
     "CutInConfig",
-    "EventKind",
     "InitialConditions",
     "InitialVehicle",
     "LogSample",
     "RoadConfig",
     "Role",
     "ScenarioConfig",
-    "SimulationEvent",
     "SimulationLog",
     "Snapshot",
     "Termination",
     "VehicleDimensions",
     "VehicleState",
+    "validate_scenario",
 ]

@@ -6,9 +6,10 @@ DESIGN.md defines the component boundaries and scenario semantics.
 ## 1. Package foundation and minimal contracts — complete
 
 - Set up an installable `src/cutin` package, uv lockfile, pytest, and Ruff.
-- Implement ScenarioConfig, validation, plain JSON conversion, and a baseline.
-- Implement minimal immutable state/action/log contracts.
-- Test JSON round trips, malformed inputs, record invariants, and installed imports.
+- Implement ScenarioConfig with boundary-only validation, TOML input, and plain
+  JSON-compatible output; no constructor validation hooks.
+- Implement small immutable state/action/log records with integer snapshot ticks.
+- Test parsing/round trips, malformed external inputs, and installed imports.
 - No simulator dependency, CLI, controllers, metrics algorithms, or search yet.
 
 Acceptance: a scenario can be loaded into a validated ScenarioConfig; the wheel
@@ -17,11 +18,14 @@ calibrated. State/log contracts may be refined by the backend integration spike.
 
 Verified for step 1:
 
-- `uv sync --locked`, 79 passing pytest cases, Ruff lint/format checks.
+- `uv sync --locked`, 57 passing pytest cases, Ruff lint/format checks.
 - Wheel and source distribution build successfully with `uv build`.
 - The wheel installs/imports in an isolated uv environment outside the repository.
-- The baseline JSON round-trips; direct/JSON inputs enforce validation and nested
-  records are immutable. Partial/error/collision logs have distinct terminations.
+- The TOML baseline loads and round-trips through JSON-compatible values.
+- External input is validated by from_dict(); Python-created/modified scenarios
+  use explicit validate_scenario() before execution.
+- Actions live separately from state. Internal records have no constructor
+  validation, event framework, or generic three-vehicle count constraints.
 - State/log records remain minimal in-memory contracts. Log serialization,
   simulator settings/provenance, and fixed tick spacing belong to step 2.
 

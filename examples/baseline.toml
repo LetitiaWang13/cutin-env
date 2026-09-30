@@ -1,0 +1,41 @@
+# Illustrative input, not a safety-calibrated scenario.
+schema_version = 1
+seed = 42
+duration_s = 10.0
+
+[road]
+lane_count = 3
+lane_width_m = 4.0
+length_m = 2000.0
+
+[vehicles]
+length_m = 5.0
+width_m = 2.0
+
+[initial.ego]
+x_m = 50.0
+lane = 1
+speed_mps = 25.0
+
+[initial.front]
+x_m = 110.0
+lane = 1
+speed_mps = 25.0
+
+[initial.cut_in]
+x_m = 65.0
+lane = 0
+speed_mps = 25.0
+
+[baseline_policy]
+desired_speed_mps = 25.0
+time_headway_s = 1.5
+minimum_gap_m = 2.0
+max_acceleration_mps2 = 2.0
+max_braking_mps2 = 6.0
+
+[cut_in]
+# Start the lateral reference, not a position-preparation phase.
+start_time_s = 2.0
+target_speed_mps = 25.0
+lane_change_duration_s = 2.0

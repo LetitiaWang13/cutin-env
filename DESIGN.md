@@ -25,7 +25,8 @@ shared, simulator-independent description throughout that workflow.
 - One straight road, exactly three lanes and three vehicles: `ego`, `front`,
   and `cut_in`. Ego/front start in lane 1; cut-in starts in lane 0 and merges
   into lane 1. Lane 2 is empty.
-- A validated JSON scenario runs through a highway-env adapter and produces a
+- A validated scenario (hand-edited TOML or API JSON) runs through a highway-env
+  adapter and produces a
   normalized simulation log, collision/gap/TTC metrics, and saved configuration.
 - Ego/front use a fixed, documented baseline policy. Cut-in uses a timed,
   physically executed lane change, not a position teleport.
@@ -178,9 +179,17 @@ Generation resolves ranges into the same `ScenarioConfig` used by direct runs.
 
 ### 3.3 Validation and serialization
 
-Use standard-library dataclasses, explicit validation, and JSON conversion;
-do not add a generic schema framework initially. Type annotations alone do not
-validate user input. Reject unknown fields, booleans as numbers, non-finite
+Use ordinary immutable dataclasses, TOML for hand-edited input, and JSON for
+API/artifact values. Python 3.11+ provides tomllib; no TOML writer or protobuf
+schema/code-generation toolchain is needed. Keep parsing format-independent.
+
+Validate external input once in ScenarioConfig.from_dict(), delegating semantic
+checks to validate_scenario(). Python-created/modified scenarios call that same
+validator at the execution boundary. Do not run defensive __post_init__ checks
+on every internal state/action/log construction. The runner owns clock/log
+consistency; the adapter checks backend limits. Three-vehicle topology belongs
+to scenario validation, not generic state/log records. Type annotations alone
+do not validate external input. Reject unknown fields, booleans as numbers, non-finite
 values, negative speeds/times, invalid lane assignments, initial footprint
 overlaps, vehicles outside the road, and front initially behind ego.
 
@@ -202,21 +211,24 @@ persisted contract has `schema_version`; v1 has no v0 compatibility requirement.
 - Lane centres: `y = lane_index * lane_width_m`.
 - Heading is radians from positive x. Vehicle positions refer to centres.
 - Stable roles identify vehicles; list order is not identity.
-- Log the initial state at t=0 and every physics step, including the terminal
-  state. Timestamps derive from integer tick count, not accumulated wall time.
+- Log tick 0 and every physics step, including the terminal state. Snapshots use
+  integer tick count as their authoritative timestamp; time_s = tick / physics_hz.
+  Seconds remain appropriate for scenario durations, integration dt, and TTC.
+  Wall-clock experiment timestamps are separate provenance, not a physics clock.
 
 ### Minimal types
 
 - `VehicleState`: role, x/y, heading, speed, length/width, collision flag.
-- `Snapshot`: timestamp and immutable tuple of the three vehicle states.
+- `Snapshot`: integer tick and immutable tuple of vehicle states; no generic
+  vehicle-count validation.
 - `ControlAction`: desired longitudinal acceleration and steering angle.
 - `LogSample`: snapshot and the actually applied, bounded actions for the
   interval ending at that snapshot (none for the initial sample).
-- `SimulationEvent`: time, event kind, involved roles; initially maneuver
-  start/completion and collision. Collision flags remain available even when
-  the backend cannot reliably identify a collision pair.
-- `SimulationLog`: resolved scenario/simulator configs, samples, events,
-  termination, actual end time, and runtime/model provenance.
+- `SimulationLog`: initially just scenario, samples, termination, and optional
+  diagnostic. Resolved simulator settings/provenance follow the backend probe.
+  Events and richer maneuver reports are deferred until control implementation
+  demonstrates their need; no event framework is required for the foundation.
+  The runner will record collision evidence and actual maneuver behavior.
 - `Metrics`: collision information, pair-specific minimum gap/TTC with times,
   and assessment validity. It references the evaluated run and evaluator version.
 - `RunResult`: application-level bundle of log and metrics; not the simulator's
@@ -344,8 +356,9 @@ src/cutin/
   core/
     __init__.py
     scenario.py             # ScenarioConfig and validation
-    state.py                # Snapshot, VehicleState, ControlAction
-    log.py                  # SimulationLog, events, termination, provenance
+    state.py                # Snapshot(tick, vehicles), VehicleState
+    action.py               # ControlAction, AppliedAction
+    log.py                  # Small SimulationLog and termination records
     metrics.py              # Shared Metrics contract, not metric algorithms
   simulation/
     __init__.py             # Public simulate() entry point
@@ -377,9 +390,9 @@ src/cutin/
     cli.py                  # Thin CLI using application workflows
     web/                    # Later only: API wrapper and static frontend
 examples/
-  baseline.json
-  unsafe.json
-  search.json              # MVP-B only
+  baseline.toml
+  unsafe.toml              # Added after real control integration
+  search.toml              # MVP-B only
 tests/
   core/                    # Contract validation and serialization
   simulation/              # Policies, adapter, clock, headless execution
@@ -426,7 +439,7 @@ configs so it can be evaluated on its own; separate files are convenient views
 of those same values, not independently editable sources of truth. Output
 locations belong to the caller; never silently overwrite an existing run.
 
-CLI proposal: `uv run cutin run examples/baseline.json --output runs/baseline`.
+CLI proposal: `uv run cutin run examples/baseline.toml --output runs/baseline`.
 Simulator/evaluator settings can initially use explicit recorded defaults.
 Library callers do not have to write artifacts. Include a wheel build/install
 smoke check so packaging works outside the repository root.
@@ -439,8 +452,9 @@ an engine that runs everything. It contains data contracts and their invariants:
 | Module | Content | Example question answered |
 | --- | --- | --- |
 | `scenario.py` | ScenarioConfig, road/vehicle/initial-state/cut-in records, validation | What experiment should every component agree on? |
-| `state.py` | Stable vehicle roles, VehicleState, Snapshot, ControlAction | What is the world state at one instant, and what action was requested? |
-| `log.py` | LogSample, SimulationEvent, SimulationLog, termination and provenance | What actually happened during this run? |
+| `state.py` | Stable vehicle roles, VehicleState, Snapshot with integer ticks | What is the world state at one instant? |
+| `action.py` | ControlAction and role-keyed AppliedAction | What action was requested/applied? |
+| `log.py` | LogSample, SimulationLog, termination and diagnostic | What actually happened during this run? |
 | `metrics.py` | Metrics and pair-level result records, including unavailable values | In what format are assessment results communicated? |
 
 For example, `core.metrics` declares that minimum TTC can be a number or null;

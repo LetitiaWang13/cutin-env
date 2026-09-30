@@ -1,6 +1,7 @@
-"""Scenario contracts and JSON input boundaries."""
+"""Scenario parsing and boundary validation, independent of the input format."""
 
 import json
+import tomllib
 from dataclasses import FrozenInstanceError, replace
 from pathlib import Path
 
@@ -14,12 +15,13 @@ from cutin.core import (
     RoadConfig,
     ScenarioConfig,
     VehicleDimensions,
+    validate_scenario,
 )
 
 
 def test_baseline_round_trip() -> None:
-    path = Path(__file__).resolve().parents[2] / "examples" / "baseline.json"
-    data = json.loads(path.read_text())
+    path = Path(__file__).resolve().parents[2] / "examples" / "baseline.toml"
+    data = tomllib.loads(path.read_text())
     scenario = ScenarioConfig.from_dict(data)
     assert scenario == ScenarioConfig()
     assert scenario.to_dict() == data
@@ -94,16 +96,29 @@ def test_nested_records_are_immutable() -> None:
         {"baseline_policy": {"max_braking_mps2": 0}},
     ],
 )
-def test_invalid_json_inputs(data: object) -> None:
+def test_invalid_external_inputs(data: object) -> None:
     with pytest.raises(ValueError):
         ScenarioConfig.from_dict(data)
 
 
-def test_direct_construction_checks_nested_types() -> None:
+def test_explicit_validation_checks_python_created_scenarios() -> None:
     with pytest.raises(ValueError, match="RoadConfig"):
-        ScenarioConfig(road={})
+        validate_scenario(ScenarioConfig(road={}))
     with pytest.raises(ValueError, match="InitialVehicle"):
-        InitialConditions(ego={})
+        validate_scenario(ScenarioConfig(initial=InitialConditions(ego={})))
+
+
+def test_construction_and_replace_do_not_run_validation() -> None:
+    changed = replace(ScenarioConfig(), duration_s=-1)
+    assert changed.duration_s == -1
+    with pytest.raises(ValueError, match="duration_s"):
+        validate_scenario(changed)
+
+
+def test_toml_values_use_the_same_validation_boundary() -> None:
+    data = tomllib.loads("[cut_in]\nlane_change_duration_s = 0.0\n")
+    with pytest.raises(ValueError, match="lane_change_duration_s"):
+        ScenarioConfig.from_dict(data)
 
 
 def test_stationary_and_late_maneuver_are_valid() -> None:
@@ -112,6 +127,7 @@ def test_stationary_and_late_maneuver_are_valid() -> None:
         cut_in=CutInConfig(start_time_s=20, target_speed_mps=0),
         baseline_policy=BaselinePolicy(desired_speed_mps=0),
     )
+    validate_scenario(scenario)
     assert scenario.cut_in.start_time_s > scenario.duration_s
 
 
@@ -119,15 +135,18 @@ def test_same_x_in_separate_lanes_is_valid() -> None:
     scenario = ScenarioConfig(
         initial=InitialConditions(cut_in=InitialVehicle(50, 0, 25))
     )
+    validate_scenario(scenario)
     assert scenario.initial.cut_in.x_m == scenario.initial.ego.x_m
 
 
 def test_footprint_can_touch_road_boundary_but_not_another_vehicle() -> None:
     scenario = ScenarioConfig(initial=InitialConditions(ego=InitialVehicle(2.5, 1, 25)))
+    validate_scenario(scenario)
     assert scenario.initial.ego.x_m == scenario.vehicles.length_m / 2
+    touching = ScenarioConfig(
+        vehicles=VehicleDimensions(width_m=4),
+        road=RoadConfig(lane_width_m=4),
+        initial=InitialConditions(cut_in=InitialVehicle(50, 0, 25)),
+    )
     with pytest.raises(ValueError, match="overlap or touch"):
-        ScenarioConfig(
-            vehicles=VehicleDimensions(width_m=4),
-            road=RoadConfig(lane_width_m=4),
-            initial=InitialConditions(cut_in=InitialVehicle(50, 0, 25)),
-        )
+        validate_scenario(touching)
