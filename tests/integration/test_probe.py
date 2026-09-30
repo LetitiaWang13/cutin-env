@@ -34,6 +34,8 @@ def test_probe_saves_resolved_settings_and_terminal_tick(
     assert data["termination_reason"] == reason
     assert data["simulator_settings"]["physics_hz"] == 30
     assert data["simulator_settings"]["backend"] == "highway-env"
+    assert data["simulator_settings"]["control_mode"] == "fixed-actions"
+    assert data["cut_in_report"] is None
     assert data["simulator_settings"]["backend_version"]
     assert data["scenario"]["cut_in"]["start_time_s"] == 2
     assert [entry["snapshot"]["tick"] for entry in data["entries"]] == list(

@@ -60,6 +60,8 @@ class FakeAdapter:
 
 
 def run_with(adapter, **kwargs):
+    # These loop tests intentionally use fixed actions, not the driving policy.
+    kwargs.setdefault("actions", {Role.EGO: ControlAction(0, 0)})
     return simulate(
         ScenarioConfig(duration_s=0.2),
         SimulatorConfig(physics_hz=20),
@@ -142,3 +144,44 @@ def test_invalid_action_and_step_limit_are_input_errors() -> None:
         run_with(FakeAdapter(), actions={Role.EGO: ControlAction(float("nan"), 0)})
     with pytest.raises(ValueError, match="max_steps"):
         run_with(FakeAdapter(), max_steps=0)
+
+
+def test_control_decisions_are_held_between_control_ticks(monkeypatch) -> None:
+    from cutin.simulation.controllers import DrivingPolicy
+
+    observed = []
+
+    def act(self, snapshot):
+        observed.append(snapshot)
+        return {Role.EGO: ControlAction(snapshot.tick / 2 + 1, 0)}
+
+    monkeypatch.setattr(DrivingPolicy, "act", act)
+    adapter = FakeAdapter()
+    log = run_with(adapter, actions=None)
+    assert [snapshot.tick for snapshot in observed] == [0, 2]
+    assert observed[0] is log.entries[0].snapshot
+    assert observed[1] is log.entries[2].snapshot
+    assert [actions[Role.EGO].acceleration_mps2 for actions, _ in adapter.calls] == [
+        1,
+        1,
+        2,
+        2,
+    ]
+    assert log.simulator_settings["control_mode"] == "scenario-policy"
+    assert log.termination_reason == TerminationReason.HORIZON
+
+
+def test_policy_failure_is_not_a_success_and_closes_backend(monkeypatch) -> None:
+    from cutin.simulation.controllers import DrivingPolicy
+
+    def fail(self, snapshot):
+        raise RuntimeError("test policy failure")
+
+    monkeypatch.setattr(DrivingPolicy, "act", fail)
+    adapter = FakeAdapter()
+    log = run_with(adapter, actions=None)
+    assert log.termination_reason == TerminationReason.ERROR
+    assert "test policy failure" in log.diagnostic
+    assert len(log.entries) == 1
+    assert adapter.calls == []
+    assert adapter.closed

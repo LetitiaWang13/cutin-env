@@ -1,10 +1,9 @@
 # Cut-in MVP Design
 
-Status: agreed architecture with incremental implementation underway. Steps 1-2
-(package foundation, small contracts, and a headless highway-env stepping probe)
-are implemented, along with a backend-independent fixed-action runner and
-separate translation functions. Driving policies are next; see PLAN.md for scope. Later contracts remain design
-proposals until their integration steps validate them.
+Status: steps 1-3 are implemented: core contracts, highway-env translation/adapter,
+and a controlled runner with following, lane keeping, and timed cut-in. Explicit
+fixed actions retain diagnostic mode. Evaluation/application/web contracts remain
+proposals pending their integration steps; see PLAN.md for verified scope.
 Confirmed: target only ego-involving collisions, and use completed-run replay
 for the first web version. Keep PREPARE on the roadmap, but defer it until after
 the timed-merge MVP and initial search baseline.
@@ -229,6 +228,9 @@ persisted contract has `schema_version`; v1 has no v0 compatibility requirement.
   mapping wrapper, or constructor hook. Producers supply tuples. Empty snapshots
   are allowed; scenario topology remains a separate rule.
 - `ControlAction`: desired longitudinal acceleration and steering angle.
+- `CutInReport`: actual reference `start_tick` and `completion_tick` (nullable).
+  Fixed-action probes have no report; a controlled run with no start/completion
+  leaves the corresponding tick null. This is a maneuver report, not a safety score.
 - `LogEntry`: one snapshot and the actually applied, bounded actions for the
   interval ending at that snapshot (none for the initial entry).
 - `SimulationLog`: scenario, entries, `termination_reason`, optional diagnostic,
@@ -295,9 +297,9 @@ Protocol enables fake-adapter tests; no registry, abstract base class, or automa
 backend discovery is needed. The default backend is selected with a lazy import;
 injected factories allow the runner to execute without highway-env internals.
 
-The runner currently executes zero/fixed actions and owns duration and stop
-policy, using returned physics ticks as its single clock (no duplicate counter).
-Controller scheduling is the next slice, not yet implemented.
+The runner executes fresh scenario policies by default; explicit fixed actions
+select diagnostic mode. It owns controller scheduling, duration, and stop policy,
+using returned physics ticks as its single clock (no duplicate counter).
 At each control tick, all three controllers read the **same** snapshot; actions are
 computed before any physical update, bounded, then held between control ticks.
 The adapter owns physics and collision detection. Every run gets fresh adapter
@@ -306,8 +308,13 @@ and controller state; cleanup runs even on errors.
 Start with highway-env road/vehicle primitives or the smallest necessary custom
 environment, not stock randomized traffic or Gym reward. Verify that internal
 actions cannot overwrite our controls. Rendering is not required for simulation.
-Do not create a custom controller framework: a small `reset`/`act` contract and
-ordinary functions/classes are sufficient.
+Controllers are pure following/lateral/reference functions plus one fresh
+DrivingPolicy per run. It produces all actions from one snapshot; no reset API,
+registration framework, or generic event subsystem is needed. CutInReport records
+reference start and actual completion at physics ticks. Completion requires the
+reference endpoint, lateral/heading tolerances, and no cut-in collision, not
+merely elapsed reference time. Gains/tolerances are experimental constants under
+`policy_version=baseline-v1`; PREPARE remains deferred.
 
 ## 6. Evaluation and falsification semantics
 
@@ -555,7 +562,7 @@ contract changes; no contributor silently changes shared field meanings.
 | --- | --- | --- |
 | 1: contracts/application | core/, application/, package setup | Validated JSON round-trip and fake-backed workflow |
 | 2: simulation integration | simulation/runner.py, config.py, adapters/ | Exactly three vehicles, fixed stepping, normalized log |
-| 3: policies/control | simulation/controllers.py | Unit-tested following, lane keeping, timed cut-in and reset |
+| 3: policies/control | simulation/controllers.py | Unit-tested following, lane keeping, timed cut-in and fresh-run isolation |
 | 4: evaluation | evaluation/ | Synthetic-log collision/gap/TTC tests including null cases |
 | 5: generation/tooling | interfaces/cli.py, then generation/ and falsification/ | CLI on fake workflow, seeded sampler and fake-backed search |
 
@@ -600,8 +607,9 @@ config that reproduces the result. No eligible result is handled explicitly.
 Team decisions to confirm before implementation:
 
 1. Is headless MVP-A followed by search MVP-B the desired delivery sequence?
-2. Which fixed ego/front policy and vehicle dimensions should the integration
-   spike establish? Freeze and record them before comparing search results.
+2. Are the experimental baseline-v1 following/tracking parameters suitable for
+   the course experiments? The current backend uses 5 m x 2 m vehicles; defaults
+   are recorded but not safety-calibrated. Calibration is a separate study.
 
 Confirmed decisions:
 

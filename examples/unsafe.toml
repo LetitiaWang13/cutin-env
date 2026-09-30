@@ -1,0 +1,13 @@
+# Intentional side cut-in regression: ego/cut_in collision in the locked setup.
+# Defaults are not safety-calibrated; all omitted values resolve from ScenarioConfig.
+duration_s = 10.0
+
+[initial.cut_in]
+x_m = 50.0
+lane = 0
+speed_mps = 25.0
+
+[cut_in]
+start_time_s = 0.0
+target_speed_mps = 25.0
+lane_change_duration_s = 1.0

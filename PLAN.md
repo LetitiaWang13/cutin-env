@@ -63,11 +63,12 @@ Verified for step 2:
   horizon validation, stop policy, and log assembly belong to the runner.
 - The runner supports zero/fixed actions; the probe calls it rather than owning
   a duplicate loop. Fake-adapter tests verify dt, bounds, stop/error behavior,
-  partial logs, and cleanup. No driving policies are implied by simulate() yet.
+  partial logs, and cleanup. This slice originally ran fixed actions only;
+  the following slice adds policies without changing backend translation.
 - Verified: 103 tests pass, including real backend stepping and fake-backed
   execution, plus Ruff and package build/import checks.
 
-## 3b. Controlled simulation — next
+## 3b. Controlled simulation — complete
 
 - Add car-following, lane keeping, and timed cut-in (PREPARE remains deferred).
 - Extend the existing runner with same-snapshot decisions at controller ticks
@@ -76,7 +77,22 @@ Verified for step 2:
 
 Acceptance: ScenarioConfig -> SimulationLog on the real backend.
 
-## 4. Evaluation and user entry point
+Verified for step 3b:
+
+- `simulate()` executes driving policies by default; explicit actions retain raw
+  probe mode. Controller ticks share one snapshot and hold actions between ticks.
+- One small controllers.py holds following, lane tracking, smooth timed merging,
+  and a fresh per-run policy. No plugin framework, PREPARE, or event subsystem.
+- CutInReport records reference-start and actual completion ticks. Late starts,
+  incomplete maneuvers, and policy errors are not hidden as successful merges.
+- `scripts/run_scenario.py` runs baseline/unsafe TOML inputs and exports JSON.
+- Baseline completes physically without collision; unsafe.toml collides ego with
+  cut-in, not front. Timing/speed/duration/initial-position changes affect motion.
+- 127 tests pass, covering synthetic policies, fake-backed scheduling, real
+  controlled runs, repeatability/isolation, and script exports. Ruff and wheel
+  build/install checks pass.
+
+## 4. Evaluation and user entry point — next
 
 - Define Metrics and implement collision/gap/TTC using synthetic logs first.
 - Connect the evaluator to real simulation logs.

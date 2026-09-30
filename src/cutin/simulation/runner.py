@@ -1,4 +1,4 @@
-"""One execution loop for coasting/fixed-action runs; driving policies follow."""
+"""One execution loop for controlled scenarios or explicit fixed-action probes."""
 
 from collections.abc import Callable, Mapping
 from math import isclose, isfinite
@@ -15,6 +15,7 @@ from cutin.core import (
     validate_scenario,
 )
 from cutin.simulation.config import SimulatorConfig, validate_simulator_config
+from cutin.simulation.controllers import DrivingPolicy
 
 
 class SimulationAdapter(Protocol):
@@ -55,7 +56,7 @@ def simulate(
     max_steps: int | None = None,
     adapter_factory: Callable[[ScenarioConfig], SimulationAdapter] | None = None,
 ) -> SimulationLog:
-    """Run fixed actions (coast by default), not the scenario's driving policies.
+    """Run scenario policies by default; explicit actions select raw probe mode.
 
     Generic validation, dt, actuator bounds, stop policy and log assembly live
     here. The adapter counts actual physics ticks; no second clock is maintained.
@@ -83,18 +84,27 @@ def simulate(
     reason = TerminationReason.CANCELLED
     diagnostic = "step limit reached (incomplete scenario assessment)"
     horizon_ticks = round(ticks)
+    control_interval = config.physics_hz // config.controller_hz
+    policy = DrivingPolicy(scenario, config) if actions is None else None
+    settings["control_mode"] = (
+        "scenario-policy" if policy is not None else "fixed-actions"
+    )
+    if policy is not None:
+        settings["policy_version"] = "baseline-v1"
     try:
         settings.update(adapter.backend_settings())
         initial = adapter.snapshot()
         entries.append(LogEntry(initial))
-        commands = (
-            fixed_actions
-            if fixed_actions is not None
-            else {state.role: ControlAction(0, 0) for state in initial.vehicles}
-        )
+        commands = fixed_actions if fixed_actions is not None else {}
         for _ in range(min(max_steps or horizon_ticks, horizon_ticks)):
+            snapshot = entries[-1].snapshot
+            if policy is not None and snapshot.tick % control_interval == 0:
+                # Every vehicle decision is computed from this same snapshot.
+                commands = _bound_actions(policy.act(snapshot), config)
             entry = adapter.step(commands, 1 / config.physics_hz)
             entries.append(entry)
+            if policy is not None:
+                policy.observe(entry.snapshot)
             if any(state.collided for state in entry.snapshot.vehicles):
                 reason, diagnostic = TerminationReason.COLLISION, None
                 break
@@ -115,4 +125,5 @@ def simulate(
         reason,
         diagnostic=diagnostic,
         simulator_settings=settings,
+        cut_in_report=policy.report() if policy is not None else None,
     )
