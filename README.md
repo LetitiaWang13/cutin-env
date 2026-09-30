@@ -5,9 +5,11 @@ for architecture and PLAN.md for delivery order.
 
 ## Current scope
 
-The foundation has scenario parsing/validation and small immutable records.
-There is no simulation, CLI, or visualization yet. No runtime dependencies;
-all numerical defaults are illustrative, not safety-calibrated.
+The foundation and a real headless highway-env stepping probe are implemented.
+There is no controlled scenario runner, evaluator, CLI command, or visualization
+application yet. All numerical defaults are illustrative, not safety-calibrated.
+Only the highway adapter imports the backend; core remains dependency-free.
+Runtime dependencies are highway-env and NumPy (plus their FOSS dependencies).
 
 ```sh
 uv sync --locked
@@ -16,6 +18,31 @@ uv run ruff check .
 uv run ruff format --check .
 uv build
 ```
+
+## Run real physics locally
+
+From this repository directory:
+
+```sh
+uv sync --locked
+uv run python scripts/probe_highway.py
+# Optional: save resolved settings, initial/terminal states, and applied actions.
+uv run python scripts/probe_highway.py --output runs/probe.json
+# Coast for the whole 10-second horizon, without steering/acceleration.
+uv run python scripts/probe_highway.py --steps 300 --acceleration 0 --steering 0
+```
+
+The default probe advances 30 physics ticks (one simulated second). Ego/front
+coast; cut-in receives raw acceleration 1 m/s^2 and steering 0.02 rad. It prints
+initial/final states and termination. No display server or window is needed.
+The step-limited probe reports `cancelled`, not a completed safety assessment.
+Collisions/road exit stop it early. Existing output files are never overwritten.
+
+**This is not the scenario controller:** cut-in start time, lane-change duration,
+and car-following policy are not executed yet. The next step implements them.
+JSON export records the scenario, simulator settings/backend version, integer
+ticks, actual bounded actions, and per-vehicle collision flags. Metadata is plain
+JSON-compatible data, not a backend object or an event framework.
 
 ## Try the configuration locally
 
@@ -59,15 +86,24 @@ PY
   Producers supply tuples; there are no container wrappers or constructor hooks.
 - `core/action.py`: acceleration/steering requests and role-keyed applied actions.
 - `core/log.py`: scenario, entries, `termination_reason` (TerminationReason enum),
-  and optional diagnostic.
+  optional diagnostic, and resolved simulator settings.
   No event framework or per-constructor lifecycle validation.
 
 TOML is for hand-edited scenarios; `to_dict()` expands defaults into JSON-compatible
 values for future API/artifact output. Core performs no file I/O. Three-vehicle
 restrictions live only in scenario validation, not in generic snapshots/logs.
-The runner will own internal record consistency and validate Python-created
-scenario inputs before execution; backend settings and log serialization follow
-in the integration probe.
+The adapter validates scenario/settings at initialization. `simulation/config.py`
+contains SimulatorConfig; `simulation/adapters/highway.py` builds a RoadNetwork,
+Road, and three base Vehicles directly. It exposes snapshot(), step(actions)
+returning LogEntry, conservative road_exited(), settings metadata, and close().
+Each step advances exactly 1 / physics_hz seconds, clamps actuator/speed bounds,
+and logs the action actually used by the backend. A future runner uses returned
+ticks for controller scheduling, without a second clock.
+
+The probe supports highway-env's default 5 m x 2 m vehicle model and speeds up
+to 40 m/s. Unsupported dimensions/speeds and nonintegral tick horizons fail
+explicitly. There is no AbstractEnv wrapper, random traffic, reward, viewer,
+controller framework, or backend registry.
 
 Coordinates use SI units: x follows the road, lane centres are
 `lane * lane_width_m`, and heading is radians from positive x. Positions are

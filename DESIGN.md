@@ -1,8 +1,8 @@
 # Cut-in MVP Design
 
-Status: agreed architecture with incremental implementation underway. Step 1
-(package foundation, scenario validation, minimal state/log contracts) is
-implemented; see PLAN.md for verified scope. Later contracts remain design
+Status: agreed architecture with incremental implementation underway. Steps 1-2
+(package foundation, small contracts, and a headless highway-env stepping probe)
+are implemented; see PLAN.md for verified scope. Later contracts remain design
 proposals until their integration steps validate them.
 Confirmed: target only ego-involving collisions, and use completed-run replay
 for the first web version. Keep PREPARE on the roadmap, but defer it until after
@@ -230,8 +230,9 @@ persisted contract has `schema_version`; v1 has no v0 compatibility requirement.
 - `ControlAction`: desired longitudinal acceleration and steering angle.
 - `LogEntry`: one snapshot and the actually applied, bounded actions for the
   interval ending at that snapshot (none for the initial entry).
-- `SimulationLog`: initially just scenario, entries, `termination_reason`, and optional
-  diagnostic. Resolved simulator settings/provenance follow the backend probe.
+- `SimulationLog`: scenario, entries, `termination_reason`, optional diagnostic,
+  and resolved simulator settings as plain JSON-compatible metadata. The probe
+  records backend version; richer provenance can follow actual experiment needs.
   Events and richer maneuver reports are deferred until control implementation
   demonstrates their need; no event framework is required for the foundation.
   The runner will record collision evidence and actual maneuver behavior.
@@ -270,20 +271,25 @@ loop consumes only `ScenarioConfig -> SimulationLog -> Metrics`. Functions are
 sufficient for random sampling and random search; a stateful proposal/feedback
 interface can be added when an adaptive optimizer actually needs one.
 
-The minimal internal adapter seam is:
+The implemented minimal internal adapter seam is:
 
 ```python
-reset(scenario, simulator_config) -> StateSnapshot
-step(actions_by_role, dt_s) -> StateSnapshot
+HighwayAdapter(scenario, simulator_config)  # Fresh state per run, not shared reset
+snapshot() -> StateSnapshot
+step(actions_by_role) -> LogEntry          # dt comes from SimulatorConfig
+road_exited(snapshot) -> bool
+simulator_settings() -> dict              # Resolved settings + backend version
 close() -> None
 ```
 
-The adapter may expose normalized events and road-exit status alongside each
-snapshot. Only define a small `Protocol` if it helps testing; no registration
+The adapter counts physics ticks and normalizes actual applied actions; there
+is no renderer or AbstractEnv wrapper. It does not decide the run's termination
+policy. The probe currently stops on collision, road exit, horizon, or step limit. Only define a small `Protocol` if it helps testing; no registration
 system, inheritance tree, or automatic backend discovery is needed.
 
-The simulation owns tick count, duration, scheduling, and stop policy. At each
-control tick, all three controllers read the **same** snapshot; actions are
+The simulation runner will own duration, scheduling, and stop policy, using the
+adapter's returned physics tick as its single clock (no duplicate time counter).
+At each control tick, all three controllers read the **same** snapshot; actions are
 computed before any physical update, bounded, then held between control ticks.
 The adapter owns physics and collision detection. Every run gets fresh adapter
 and controller state; cleanup runs even on errors.

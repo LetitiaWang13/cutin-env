@@ -28,10 +28,10 @@ Verified for step 1:
   validation, event framework, or generic three-vehicle count constraints.
 - StateSnapshot stores a flat tuple. vehicles_for_role() returns every matching
   vehicle as a tuple, or an empty tuple; no mapping wrapper or constructor hook.
-- State/log records remain minimal in-memory contracts. Log serialization,
-  simulator settings/provenance, and fixed tick spacing belong to step 2.
+- State/log records remain small data contracts. Step 2 adds actual stepping,
+  simulator metadata, and a diagnostic JSON export.
 
-## 2. Highway-env integration probe — next
+## 2. Highway-env integration probe — complete
 
 - Add SimulatorConfig and the highway adapter.
 - Initialize exactly three vehicles; normalize snapshots and advance fixed steps.
@@ -39,7 +39,21 @@ Verified for step 1:
   window is opened. Record resolved simulator settings in the log.
 - Do not add full driving policies before verifying backend behavior.
 
-## 3. Controlled simulation
+Verified for step 2:
+
+- 90 total passing tests: backend layout, shared fixed dt, external actions,
+  actual bounded-action logging, speed bounds, deterministic reruns, and headless
+  execution without pygame display initialization.
+- Collision flags distinguish ego/front from cut-in/front-only collisions.
+- `scripts/probe_highway.py` prints real initial/final states, optionally saves
+  a JSON log with resolved simulator settings, and refuses output overwrites.
+- Probe cutoff is cancelled; horizon, collisions, and conservative road exits
+  are explicit. This diagnostic does not execute cut-in timing or driving policy.
+- No renderer, Gym environment wrapper, abstract backend hierarchy, or general
+  persistence framework was added. The adapter counts physical ticks; the future
+  runner will schedule controllers from that same clock.
+
+## 3. Controlled simulation — next
 
 - Add car-following, lane keeping, and timed cut-in (PREPARE remains deferred).
 - Implement the fixed-clock runner, same-snapshot decisions, held/bounded actions,
