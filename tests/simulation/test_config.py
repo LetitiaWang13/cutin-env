@@ -1,4 +1,4 @@
-"""Simulator settings are validated once at the adapter boundary."""
+"""Simulator settings are validated at the runner boundary."""
 
 from dataclasses import replace
 
@@ -12,7 +12,7 @@ def test_defaults_and_serialization() -> None:
     config = SimulatorConfig()
     validate_simulator_config(config)
     assert config.to_dict()["physics_hz"] == 30
-    assert config.to_dict()["backend"] == "highway"
+    assert config.to_dict()["backend"] == "highway-env"
 
 
 @pytest.mark.parametrize(

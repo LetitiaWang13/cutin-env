@@ -16,7 +16,7 @@ def test_probe_saves_resolved_settings_and_terminal_tick(
     output = tmp_path / "probe.json"
     command = [
         sys.executable,
-        "scripts/probe_highway.py",
+        "scripts/probe_highway_env.py",
         "--steps",
         str(steps),
         "--acceleration",
@@ -33,6 +33,7 @@ def test_probe_saves_resolved_settings_and_terminal_tick(
     data = json.loads(output.read_text())
     assert data["termination_reason"] == reason
     assert data["simulator_settings"]["physics_hz"] == 30
+    assert data["simulator_settings"]["backend"] == "highway-env"
     assert data["simulator_settings"]["backend_version"]
     assert data["scenario"]["cut_in"]["start_time_s"] == 2
     assert [entry["snapshot"]["tick"] for entry in data["entries"]] == list(

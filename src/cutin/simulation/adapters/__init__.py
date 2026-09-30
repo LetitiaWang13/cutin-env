@@ -1,1 +1,1 @@
-"""Backend bridges. Only the highway adapter is implemented."""
+"""Backend bridges. Only the highway-env adapter is implemented."""

@@ -6,7 +6,7 @@ from math import isfinite, pi
 
 @dataclass(frozen=True)
 class SimulatorConfig:
-    backend: str = "highway"
+    backend: str = "highway-env"
     physics_hz: int = 30
     controller_hz: int = 10
     max_acceleration_mps2: float = 3.0
@@ -18,9 +18,9 @@ class SimulatorConfig:
 
 
 def validate_simulator_config(config: SimulatorConfig) -> None:
-    """Validate at adapter creation, not at each record construction."""
-    if config.backend != "highway":
-        raise ValueError("only the highway backend is supported")
+    """Validate at the runner boundary, not inside a backend adapter."""
+    if config.backend != "highway-env":
+        raise ValueError("only the highway-env backend is supported")
     for name in ("physics_hz", "controller_hz"):
         value = getattr(config, name)
         if type(value) is not int or value <= 0:

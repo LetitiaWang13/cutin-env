@@ -33,7 +33,7 @@ Verified for step 1:
 
 ## 2. Highway-env integration probe — complete
 
-- Add SimulatorConfig and the highway adapter.
+- Add SimulatorConfig and the highway-env adapter.
 - Initialize exactly three vehicles; normalize snapshots and advance fixed steps.
 - Check external actions survive backend stepping, collision flags work, and no
   window is opened. Record resolved simulator settings in the log.
@@ -45,7 +45,7 @@ Verified for step 2:
   actual bounded-action logging, speed bounds, deterministic reruns, and headless
   execution without pygame display initialization.
 - Collision flags distinguish ego/front from cut-in/front-only collisions.
-- `scripts/probe_highway.py` prints real initial/final states, optionally saves
+- `scripts/probe_highway_env.py` prints real initial/final states, optionally saves
   a JSON log with resolved simulator settings, and refuses output overwrites.
 - Probe cutoff is cancelled; horizon, collisions, and conservative road exits
   are explicit. This diagnostic does not execute cut-in timing or driving policy.
@@ -53,11 +53,25 @@ Verified for step 2:
   persistence framework was added. The adapter counts physical ticks; the future
   runner will schedule controllers from that same clock.
 
-## 3. Controlled simulation — next
+## 3a. Separate translation and execution policy — complete
+
+- Backend naming is `highway-env` in metadata/docs, `highway_env` in Python modules,
+  and HighwayEnvAdapter for the class. No ambiguous `highway` backend alias.
+- Configuration/object construction, action translation, and state translation
+  are small functions separate from adapter lifecycle/physical stepping.
+- The adapter accepts dt and has no SimulatorConfig dependency. Generic bounds,
+  horizon validation, stop policy, and log assembly belong to the runner.
+- The runner supports zero/fixed actions; the probe calls it rather than owning
+  a duplicate loop. Fake-adapter tests verify dt, bounds, stop/error behavior,
+  partial logs, and cleanup. No driving policies are implied by simulate() yet.
+- Verified: 103 tests pass, including real backend stepping and fake-backed
+  execution, plus Ruff and package build/import checks.
+
+## 3b. Controlled simulation — next
 
 - Add car-following, lane keeping, and timed cut-in (PREPARE remains deferred).
-- Implement the fixed-clock runner, same-snapshot decisions, held/bounded actions,
-  logging, termination, and cleanup.
+- Extend the existing runner with same-snapshot decisions at controller ticks
+  and held actions between those ticks; keep backend translation unchanged.
 - Check repeatability and that scenario parameter changes affect actual motion.
 
 Acceptance: ScenarioConfig -> SimulationLog on the real backend.

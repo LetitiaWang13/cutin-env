@@ -1,4 +1,4 @@
-"""Real backend checks; no controllers, reward, renderer, or optimizer."""
+"""Backend stepping tests, independent of SimulatorConfig and runner scheduling."""
 
 from dataclasses import replace
 
@@ -13,8 +13,9 @@ from cutin.core import (
     ScenarioConfig,
     VehicleDimensions,
 )
-from cutin.simulation import SimulatorConfig
-from cutin.simulation.adapters.highway import HighwayAdapter
+from cutin.simulation.adapters.highway_env import HighwayEnvAdapter
+
+DT = 1 / 30
 
 
 def coast() -> dict[Role, ControlAction]:
@@ -23,12 +24,12 @@ def coast() -> dict[Role, ControlAction]:
 
 @pytest.fixture
 def adapter():
-    instance = HighwayAdapter(ScenarioConfig(), SimulatorConfig())
+    instance = HighwayEnvAdapter(ScenarioConfig())
     yield instance
     instance.close()
 
 
-def test_exact_initial_scene(adapter: HighwayAdapter) -> None:
+def test_exact_initial_scene(adapter: HighwayEnvAdapter) -> None:
     state = adapter.snapshot()
     assert state.tick == 0
     assert len(state.vehicles) == 3
@@ -37,29 +38,27 @@ def test_exact_initial_scene(adapter: HighwayAdapter) -> None:
         assert (vehicle.x_m, vehicle.y_m, vehicle.speed_mps) == (x, y, 25)
         assert (vehicle.length_m, vehicle.width_m) == (5, 2)
         assert not vehicle.collided
-    # One backend-specific assertion checks the actual empty third lane exists.
     assert len(adapter._road.network.graph["start"]["end"]) == 3
     assert len(adapter._road.vehicles) == 3
 
 
-def test_fixed_step_and_previous_snapshot_is_not_mutated(
-    adapter: HighwayAdapter,
-) -> None:
+@pytest.mark.parametrize("dt_s", [1 / 30, 1 / 20])
+def test_caller_supplies_dt_and_old_snapshot_is_unchanged(adapter, dt_s) -> None:
     initial = adapter.snapshot()
-    result = adapter.step(coast())
+    result = adapter.step(coast(), dt_s)
     (ego,) = result.snapshot.vehicles_for_role(Role.EGO)
     assert result.snapshot.tick == 1
-    assert ego.x_m == pytest.approx(50 + 25 / 30)
+    assert ego.x_m == pytest.approx(50 + 25 * dt_s)
     assert initial.vehicles_for_role(Role.EGO)[0].x_m == 50
     assert len(result.applied_actions) == 3
 
 
-def test_external_commands_survive_backend_act(adapter: HighwayAdapter) -> None:
+def test_external_commands_survive_backend_act(adapter: HighwayEnvAdapter) -> None:
     actions = coast()
     actions[Role.CUT_IN] = ControlAction(2, 0.1)
-    result = adapter.step(actions)
+    result = adapter.step(actions, DT)
     (cut_in,) = result.snapshot.vehicles_for_role(Role.CUT_IN)
-    assert cut_in.speed_mps == pytest.approx(25 + 2 / 30)
+    assert cut_in.speed_mps == pytest.approx(25 + 2 * DT)
     assert cut_in.y_m > 0
     assert cut_in.heading_rad > 0
     applied = {entry.role: entry.action for entry in result.applied_actions}
@@ -67,53 +66,54 @@ def test_external_commands_survive_backend_act(adapter: HighwayAdapter) -> None:
     assert applied[Role.EGO] == ControlAction(0, 0)
 
 
-def test_limits_record_actual_bounded_action(adapter: HighwayAdapter) -> None:
-    actions = coast()
-    actions[Role.CUT_IN] = ControlAction(100, 10)
-    result = adapter.step(actions)
-    applied = {entry.role: entry.action for entry in result.applied_actions}
-    assert applied[Role.CUT_IN] == ControlAction(3, 0.5)
-
-
 @pytest.mark.parametrize("speed, requested, expected", [(0.01, -100, 0), (40, 100, 40)])
-def test_speed_bounds_prevent_reverse_and_overshoot(speed, requested, expected) -> None:
+def test_backend_speed_bounds_are_recorded(speed, requested, expected) -> None:
     scenario = replace(
-        ScenarioConfig(),
-        initial=InitialConditions(ego=InitialVehicle(50, 1, speed)),
+        ScenarioConfig(), initial=InitialConditions(ego=InitialVehicle(50, 1, speed))
     )
-    adapter = HighwayAdapter(scenario, SimulatorConfig())
+    adapter = HighwayEnvAdapter(scenario)
     try:
         actions = coast()
         actions[Role.EGO] = ControlAction(requested, 0)
-        result = adapter.step(actions)
+        result = adapter.step(actions, DT)
         assert result.snapshot.vehicles_for_role(Role.EGO)[
             0
         ].speed_mps == pytest.approx(expected)
+        actual = {entry.role: entry.action for entry in result.applied_actions}
+        assert actual[Role.EGO].acceleration_mps2 == pytest.approx(
+            (expected - speed) / DT
+        )
     finally:
         adapter.close()
 
 
-def test_invalid_commands_do_not_partially_advance(adapter: HighwayAdapter) -> None:
+def test_invalid_commands_do_not_partially_advance(adapter: HighwayEnvAdapter) -> None:
     initial = adapter.snapshot()
     with pytest.raises(ValueError, match="each initialized"):
-        adapter.step({Role.EGO: ControlAction(0, 0)})
+        adapter.step({Role.EGO: ControlAction(0, 0)}, DT)
     actions = coast()
     actions[Role.CUT_IN] = ControlAction(float("nan"), 0)
     with pytest.raises(ValueError, match="finite"):
-        adapter.step(actions)
+        adapter.step(actions, DT)
     assert adapter.snapshot() == initial
-    assert adapter.step(coast()).snapshot.tick == 1
+    assert adapter.step(coast(), DT).snapshot.tick == 1
+
+
+@pytest.mark.parametrize("dt_s", [0, -1, float("nan"), float("inf")])
+def test_invalid_dt_does_not_advance(adapter, dt_s) -> None:
+    with pytest.raises(ValueError, match="dt_s"):
+        adapter.step(coast(), dt_s)
+    assert adapter.snapshot().tick == 0
 
 
 def test_ego_collision_flags_are_normalized() -> None:
     scenario = replace(
-        ScenarioConfig(),
-        initial=InitialConditions(front=InitialVehicle(60, 1, 0)),
+        ScenarioConfig(), initial=InitialConditions(front=InitialVehicle(60, 1, 0))
     )
-    adapter = HighwayAdapter(scenario, SimulatorConfig())
+    adapter = HighwayEnvAdapter(scenario)
     try:
         for _ in range(30):
-            state = adapter.step(coast()).snapshot
+            state = adapter.step(coast(), DT).snapshot
             if any(vehicle.collided for vehicle in state.vehicles):
                 break
         assert state.vehicles_for_role(Role.EGO)[0].collided
@@ -130,12 +130,12 @@ def test_non_ego_collision_keeps_ego_flag_clear() -> None:
             front=InitialVehicle(110, 1, 25), cut_in=InitialVehicle(110, 0, 25)
         ),
     )
-    adapter = HighwayAdapter(scenario, SimulatorConfig())
+    adapter = HighwayEnvAdapter(scenario)
     try:
         actions = coast()
         actions[Role.CUT_IN] = ControlAction(0, 0.15)
         for _ in range(30):
-            state = adapter.step(actions).snapshot
+            state = adapter.step(actions, DT).snapshot
             if any(vehicle.collided for vehicle in state.vehicles):
                 break
         assert state.vehicles_for_role(Role.FRONT)[0].collided
@@ -147,11 +147,11 @@ def test_non_ego_collision_keeps_ego_flag_clear() -> None:
 
 def test_repeatability_and_run_isolation() -> None:
     def run():
-        adapter = HighwayAdapter(ScenarioConfig(), SimulatorConfig())
+        adapter = HighwayEnvAdapter(ScenarioConfig())
         try:
             actions = coast()
             actions[Role.CUT_IN] = ControlAction(1, 0.02)
-            return tuple(adapter.step(actions) for _ in range(30))
+            return tuple(adapter.step(actions, DT) for _ in range(30))
         finally:
             adapter.close()
 
@@ -162,19 +162,19 @@ def test_headless_does_not_initialize_pygame_display(monkeypatch) -> None:
     monkeypatch.delenv("DISPLAY", raising=False)
     monkeypatch.setenv("SDL_VIDEODRIVER", "invalid-driver")
     assert not pygame.display.get_init()
-    adapter = HighwayAdapter(ScenarioConfig(), SimulatorConfig())
+    adapter = HighwayEnvAdapter(ScenarioConfig())
     try:
-        adapter.step(coast())
+        adapter.step(coast(), DT)
         assert not pygame.display.get_init()
     finally:
         adapter.close()
 
 
-def test_metadata_road_exit_and_close(adapter: HighwayAdapter) -> None:
-    settings = adapter.simulator_settings()
-    assert settings["backend"] == "highway"
+def test_backend_metadata_road_exit_and_close(adapter: HighwayEnvAdapter) -> None:
+    settings = adapter.backend_settings()
+    assert settings["backend"] == "highway-env"
     assert settings["backend_version"]
-    assert settings["physics_hz"] == 30
+    assert "physics_hz" not in settings
     state = adapter.snapshot()
     assert not adapter.road_exited(state)
     outside = replace(state, vehicles=(replace(state.vehicles[0], y_m=-3),))
@@ -182,21 +182,18 @@ def test_metadata_road_exit_and_close(adapter: HighwayAdapter) -> None:
     adapter.close()
     adapter.close()
     with pytest.raises(RuntimeError, match="closed"):
-        adapter.step(coast())
+        adapter.step(coast(), DT)
 
 
 @pytest.mark.parametrize(
     "scenario",
     [
-        replace(ScenarioConfig(), duration_s=0.01),
-        replace(ScenarioConfig(), duration_s=1e-20),
-        replace(ScenarioConfig(), duration_s=-1),
         replace(ScenarioConfig(), vehicles=VehicleDimensions(length_m=6)),
         replace(
             ScenarioConfig(), initial=InitialConditions(ego=InitialVehicle(50, 1, 41))
         ),
     ],
 )
-def test_unsupported_scenarios_fail_at_adapter_boundary(scenario) -> None:
+def test_unsupported_backend_features_fail(scenario) -> None:
     with pytest.raises(ValueError):
-        HighwayAdapter(scenario, SimulatorConfig())
+        HighwayEnvAdapter(scenario)

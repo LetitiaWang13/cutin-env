@@ -12,6 +12,7 @@ def test_installed_import_has_no_backend_dependencies(tmp_path: Path) -> None:
             "-I",
             "-c",
             "from cutin.core import ScenarioConfig; "
+            "from cutin.simulation import SimulatorConfig, simulate; "
             "import sys; "
             "assert ScenarioConfig().road.lane_count == 3; "
             "assert not {'highway_env', 'pygame', 'numpy', 'gymnasium'} "

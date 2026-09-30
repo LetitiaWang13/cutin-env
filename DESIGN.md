@@ -2,7 +2,8 @@
 
 Status: agreed architecture with incremental implementation underway. Steps 1-2
 (package foundation, small contracts, and a headless highway-env stepping probe)
-are implemented; see PLAN.md for verified scope. Later contracts remain design
+are implemented, along with a backend-independent fixed-action runner and
+separate translation functions. Driving policies are next; see PLAN.md for scope. Later contracts remain design
 proposals until their integration steps validate them.
 Confirmed: target only ego-involving collisions, and use completed-run replay
 for the first web version. Keep PREPARE on the roadmap, but defer it until after
@@ -56,7 +57,7 @@ ScenarioConfig --------------------------+
         |                                |
         v                                |
 Simulation + SimulatorConfig             |
-        | uses HighwayAdapter            |
+        | uses HighwayEnvAdapter         |
         v                                |
 SimulationLog (includes resolved config)  |
         |                                |
@@ -80,7 +81,7 @@ an additional hop between each internal module.
 | Generation | Proposing concrete valid scenarios from a base and ranges | Simulator objects, web state |
 | Falsification | Budget, candidate execution, objective, best candidate | highway-env internals, UI |
 | Simulation | Per-run lifecycle, fixed clock, controller scheduling, termination | Metrics, search, HTTP |
-| Highway adapter | Road/vehicles, physical stepping, normalized state, collision events | Search objective, persistence, UI |
+| highway-env adapter | Road/vehicles, physical stepping, normalized state, collision events | Search objective, persistence, UI |
 | Evaluator | Pure computation from normalized logs | Simulator objects, driving policies |
 | Application | Compose run/search workflows and save results | Backend internals |
 | CLI / future API | Parse requests and expose application results | Physics and metric formulas |
@@ -162,7 +163,7 @@ lateral position within a lane.
 
 ### 3.2 Other configurations
 
-- `SimulatorConfig`: **how it runs** — backend identifier (`highway` only),
+- `SimulatorConfig`: **how it runs** — backend identifier (`highway-env` only),
   physics/control rates, adapter-specific numerical/model settings. No scenario
   values are secretly overridden. Unsupported scenario features fail clearly.
 - `EvaluationConfig`: **how it is judged** — metric version and optional safety
@@ -274,21 +275,29 @@ interface can be added when an adaptive optimizer actually needs one.
 The implemented minimal internal adapter seam is:
 
 ```python
-HighwayAdapter(scenario, simulator_config)  # Fresh state per run, not shared reset
+HighwayEnvAdapter(validated_scenario)      # Fresh backend objects for each run
 snapshot() -> StateSnapshot
-step(actions_by_role) -> LogEntry          # dt comes from SimulatorConfig
+step(actions_by_role, dt_s) -> LogEntry    # Runner supplies dt and generic bounds
 road_exited(snapshot) -> bool
-simulator_settings() -> dict              # Resolved settings + backend version
+backend_settings() -> dict               # Backend identity/version, not run config
 close() -> None
 ```
 
-The adapter counts physics ticks and normalizes actual applied actions; there
-is no renderer or AbstractEnv wrapper. It does not decide the run's termination
-policy. The probe currently stops on collision, road exit, horizon, or step limit. Only define a small `Protocol` if it helps testing; no registration
-system, inheritance tree, or automatic backend discovery is needed.
+The adapter counts physical ticks, coordinates translation, and calls highway-env.
+It has no SimulatorConfig dependency, renderer, or AbstractEnv wrapper.
+`highway_env_translation.py` owns scenario-to-backend construction, action field/
+unit translation with backend speed limits, state copying, and footprint checks.
+These are functions, not a Translator inheritance hierarchy.
 
-The simulation runner will own duration, scheduling, and stop policy, using the
-adapter's returned physics tick as its single clock (no duplicate time counter).
+The runner owns generic input/config validation, actuator limits, dt, stop policy,
+log assembly, and cleanup. The probe delegates to the runner. A small structural
+Protocol enables fake-adapter tests; no registry, abstract base class, or automatic
+backend discovery is needed. The default backend is selected with a lazy import;
+injected factories allow the runner to execute without highway-env internals.
+
+The runner currently executes zero/fixed actions and owns duration and stop
+policy, using returned physics ticks as its single clock (no duplicate counter).
+Controller scheduling is the next slice, not yet implemented.
 At each control tick, all three controllers read the **same** snapshot; actions are
 computed before any physical update, bounded, then held between control ticks.
 The adapter owns physics and collision detection. Every run gets fresh adapter
@@ -379,7 +388,8 @@ src/cutin/
     controllers.py          # Fixed following and timed cut-in policies
     adapters/
       __init__.py
-      highway.py            # Only highway-env integration
+      highway_env.py        # Adapter lifecycle and physical stepping
+      highway_env_translation.py # Scenario/action/state translation functions
   evaluation/
     __init__.py             # Public evaluate() entry point
     config.py               # EvaluationConfig
@@ -549,7 +559,7 @@ contract changes; no contributor silently changes shared field meanings.
 | 4: evaluation | evaluation/ | Synthetic-log collision/gap/TTC tests including null cases |
 | 5: generation/tooling | interfaces/cli.py, then generation/ and falsification/ | CLI on fake workflow, seeded sampler and fake-backed search |
 
-Owner 5 can build against fake callables before highway integration is ready;
+Owner 5 can build against fake callables before highway-env integration is ready;
 owner 4 can use synthetic logs. Owner 1 and owner 2 agree lifecycle/result/error
 behavior first. Web work begins only after the headless interface is stable;
 it need not be a sixth concurrent subsystem.
@@ -557,7 +567,7 @@ it need not be a sixth concurrent subsystem.
 Delivery sequence:
 
 1. Agree contract fields, parameter semantics, and small synthetic fixtures.
-2. Package/config/log serialization plus a highway integration spike.
+2. Package/config/log serialization plus a highway-env integration spike.
 3. One actual scenario -> normalized log -> metrics -> saved artifacts (MVP-A).
 4. Seeded sampling and a bounded search using unchanged contracts (MVP-B).
 5. Optional browser form and completed-run replay.
