@@ -1,7 +1,7 @@
 # Cut-in MVP Design
 
 Status: steps 1-3 are implemented: core contracts, highway-env translation/adapter,
-and a controlled runner with following, lane keeping, and timed cut-in. Explicit
+a controlled runner, and native visualization via CutInEnv(HighwayEnv). Explicit
 fixed actions retain diagnostic mode. Evaluation/application/web contracts remain
 proposals pending their integration steps; see PLAN.md for verified scope.
 Confirmed: target only ego-involving collisions, and use completed-run replay
@@ -277,22 +277,34 @@ interface can be added when an adaptive optimizer actually needs one.
 The implemented minimal internal adapter seam is:
 
 ```python
-HighwayEnvAdapter(validated_scenario)      # Fresh backend objects for each run
+HighwayEnvAdapter(validated_scenario, render_mode=None) # Optional human/rgb_array
 snapshot() -> StateSnapshot
 step(actions_by_role, dt_s) -> LogEntry    # Runner supplies dt and generic bounds
 road_exited(snapshot) -> bool
 backend_settings() -> dict               # Backend identity/version, not run config
+render() -> ndarray | None               # Native renderer, never required headlessly
 close() -> None
 ```
 
-The adapter counts physical ticks, coordinates translation, and calls highway-env.
-It has no SimulatorConfig dependency, renderer, or AbstractEnv wrapper.
+The adapter coordinates translation and delegates physics/clock to
+CutInEnv(HighwayEnv); it has no SimulatorConfig dependency. This custom Gym
+host replaces stock reset, action/observation spaces, and multi-frame step with
+our scene and one physical tick. Joint actions use physical acceleration/steering,
+not RL normalization. Reward is a constant zero and is not an evaluation score.
+Native EnvViewer provides human/rgb_array rendering; no custom GUI is needed.
+Rendering is optional and headless mode creates no viewer. Native driving-key
+handling is disabled by not attaching a stock ActionType.
 `highway_env_translation.py` owns scenario-to-backend construction, action field/
 unit translation with backend speed limits, state copying, and footprint checks.
 These are functions, not a Translator inheritance hierarchy.
 
 The runner owns generic input/config validation, actuator limits, dt, stop policy,
-log assembly, and cleanup. The probe delegates to the runner. A small structural
+log assembly, and cleanup. The probe delegates to the runner. An optional
+on_step(snapshot) observer handles developer rendering/cancellation outside the
+fixed-clock loop. Native human reset/step renders automatically; the observer
+only handles close/terminal hold there, avoiding double rendering. RGB capture
+is explicit. Rendered/headless and pre-Gym/wrapped trajectories match in tests.
+A small structural
 Protocol enables fake-adapter tests; no registry, abstract base class, or automatic
 backend discovery is needed. The default backend is selected with a lazy import;
 injected factories allow the runner to execute without highway-env internals.
@@ -395,8 +407,9 @@ src/cutin/
     controllers.py          # Fixed following and timed cut-in policies
     adapters/
       __init__.py
-      highway_env.py        # Adapter lifecycle and physical stepping
+      highway_env.py        # Contract/Gym bridge and optional native rendering
       highway_env_translation.py # Scenario/action/state translation functions
+      cut_in_env.py         # CutInEnv(HighwayEnv): joint step and native viewer
   evaluation/
     __init__.py             # Public evaluate() entry point
     config.py               # EvaluationConfig

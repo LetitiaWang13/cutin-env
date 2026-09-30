@@ -5,13 +5,14 @@ for architecture and PLAN.md for delivery order.
 
 ## Current scope
 
-The headless runner now executes configured car-following, lane keeping, and
-cut-in policies through highway-env. Metrics, a packaged CLI command, and web
-visualization are not implemented yet. Numerical defaults are experimental,
+The runner executes configured car-following, lane keeping, and cut-in policies
+through CutInEnv(HighwayEnv), with optional native visualization. Metrics, a
+packaged CLI command, and web visualization are not implemented yet. Numerical defaults are experimental,
 not safety-calibrated.
 Only highway-env adapter/translation modules import the backend. Core and the
 runner's public imports remain backend-independent.
-Runtime dependencies are highway-env and NumPy (plus their FOSS dependencies).
+Runtime dependencies are highway-env, Gymnasium, and NumPy (plus FOSS dependencies).
+Gym is used only for environment/rendering interfaces, not RL training.
 
 ```sh
 uv sync --locked
@@ -37,10 +38,39 @@ The baseline runs 10 seconds and completes a lane-0-to-lane-1 merge without
 collision in the locked setup. The unsafe fixture deliberately causes an
 **ego/cut-in collision**, not a front-only collision. These are regression
 examples, not a safety guarantee. Results print final states, termination, and
-actual cut-in reference-start/completion ticks; there is no graphical viewer yet.
+actual cut-in reference-start/completion ticks. See native visualization below.
 
 `simulate(scenario, SimulatorConfig())` executes policies by default. Supplying
 explicit `actions=...` selects fixed-action diagnostic mode instead.
+
+## Native highway-env visualization
+
+On a machine with a desktop display:
+
+```sh
+uv run python scripts/run_scenario.py --render
+uv run python scripts/run_scenario.py examples/unsafe.toml --render
+# The same log export works during visual runs.
+uv run python scripts/run_scenario.py --render --output runs/visual-baseline.json
+```
+
+This uses highway-env's own EnvViewer, not a custom Pygame GUI or Canvas renderer.
+Blue is ego, green is front, orange is cut-in (native collision styling may
+change colors). Physics remains fixed-step; human display is paced at the
+physics frequency. Slow rendering slows wall-clock playback, never skips ticks.
+
+- Close the window during a run to cancel and retain the partial log.
+- After collision/horizon/road exit, the final scene stays until you close it.
+- Keyboard driving is disabled; the official camera zoom/pan keys remain native.
+- No form controls, pause/single-step, or training interface is added.
+- Only one native viewer at a time is supported; upstream closes global Pygame.
+
+Headless runs do not initialize a viewer/display. `render_mode="rgb_array"` on
+HighwayEnvAdapter returns native RGB pixels for automated smoke checks. Baseline
+and unsafe rendered logs match headless logs exactly; the Gym wrapper also
+matches the previous primitive stepping path at 20/30 Hz. Automated SDL-dummy
+checks verify drawing, keyboard isolation, close/cancel, and cleanup; confirm
+actual desktop appearance/input with the commands above.
 
 ## Run the raw-action physics probe
 
@@ -130,13 +160,19 @@ The simulation component is now split into:
   action fields and enforces backend speed limits; `collect_snapshot()` copies
   backend state into our records. No Translator classes or config framework.
 - `simulation/adapters/highway_env.py`: HighwayEnvAdapter coordinates those
-  translations and calls highway-env physics. It accepts `step(actions, dt_s)`
-  and has no SimulatorConfig dependency. It counts actual physics ticks; the
-  runner uses returned ticks rather than maintaining another clock.
+  translations and bridges our records to CutInEnv. It accepts `step(actions, dt_s)`
+  and has no SimulatorConfig dependency. It exposes optional native render/close.
+- `simulation/adapters/cut_in_env.py`: CutInEnv subclasses HighwayEnv but overrides
+  stock reset/step/spaces. It builds only our scene, applies joint physical actions,
+  and advances exactly one Road.step per call. Its integer steps are the one
+  physics clock; the runner does not maintain another counter. Reward is zero.
+  Native reset/step render automatically in human mode; rgb_array is explicit.
 
 The probe is now only argument parsing, calling the same `simulate()` entry
 point, and displaying/exporting the returned log, not a second simulation loop.
 The runner's small Protocol allows fake-adapter tests without backend objects.
+An optional on_step(snapshot) observer receives the initial and each physics
+snapshot, returns False to cancel, and keeps display/input outside scheduling.
 
 The baseline policy is bounded IDM-style following plus bicycle-model lateral
 tracking (`policy_version=baseline-v1` in controlled logs). Leaders are selected
@@ -153,8 +189,11 @@ Termination and maneuver observations are not safety metrics.
 
 The probe supports highway-env's default 5 m x 2 m vehicle model and speeds up
 to 40 m/s. Unsupported dimensions/speeds and nonintegral tick horizons fail
-explicitly. There is no AbstractEnv wrapper, random traffic, reward, viewer,
-controller framework, or backend registry.
+explicitly. CutInEnv bypasses stock random traffic, RL reward calculations, and
+multi-frame action scheduling. No controller framework or backend registry is
+added. Gym physical action/observation spaces are intentionally not normalized
+RL spaces. Direct Gym callers use joint dictionaries and the fixed native dt;
+the adapter can supply the runner's dt, which must stay fixed within an episode.
 
 Coordinates use SI units: x follows the road, lane centres are
 `lane * lane_width_m`, and heading is radians from positive x. Positions are

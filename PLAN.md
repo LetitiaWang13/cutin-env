@@ -92,6 +92,26 @@ Verified for step 3b:
   controlled runs, repeatability/isolation, and script exports. Ruff and wheel
   build/install checks pass.
 
+## 3c. Native visualization for developer verification — complete
+
+Inserted before metrics to let developers visually inspect actual driving.
+
+- CutInEnv(HighwayEnv) hosts our scenario with joint physical action spaces,
+  numeric observations, zero reward, and exactly one physics step per Gym step.
+- Reuse native EnvViewer for human/rgb_array modes. No stock traffic, learning,
+  RL action normalization, or inherited multi-step scheduling.
+- HighwayEnvAdapter delegates physics/clock to CutInEnv; translation and driving
+  policies remain separate. Headless execution does not create a viewer.
+- `scripts/run_scenario.py --render` opens the native display, retains terminal
+  scenes until close, and records early window close as cancelled.
+- A small observer callback keeps rendering outside runner scheduling; keyboard
+  driving cannot override external actions. No forms/pause/single-step controls.
+- Verified: 142 tests pass; native RGB pixels, rendered/headless log equivalence,
+  pre-Gym/wrapped physics equivalence at 20/30 Hz, Gym API checks, close/error
+  cleanup, and installed-wheel rendering smoke. Ruff and builds pass.
+- Real desktop appearance/input remains a manual smoke check; automated native
+  window-event tests use SDL dummy. One native viewer at a time is supported.
+
 ## 4. Evaluation and user entry point — next
 
 - Define Metrics and implement collision/gap/TTC using synthetic logs first.
@@ -118,4 +138,4 @@ Use separate `feat/` branches and small commits. Review shared contracts togethe
 Run checks with uv; keep runtime dependencies minimal and fully FOSS. Update this
 plan with verified completion, not merely the existence of files.
 
-> Recap: Build and verify contracts first, then backend stepping, controlled simulation, evaluation/CLI, search, and finally completed-run web replay.
+> Recap: Contracts, backend stepping, controlled simulation, and native developer visualization are implemented. Continue with evaluation/CLI, search, and finally completed-run web replay.
