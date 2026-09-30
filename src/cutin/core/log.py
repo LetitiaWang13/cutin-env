@@ -1,6 +1,6 @@
 """Minimal run history. The runner, not record constructors, owns consistency."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
 
 from cutin.core.action import AppliedAction
@@ -28,10 +28,11 @@ class LogEntry:
 class SimulationLog:
     """Resolved input, sampled motion, and termination. No event framework yet.
 
-    Backend settings and serialization will follow the integration probe.
+    Simulator settings are plain metadata, not a dependency on backend types.
     """
 
     scenario: ScenarioConfig
     entries: tuple[LogEntry, ...]
     termination_reason: TerminationReason
     diagnostic: str | None = None
+    simulator_settings: dict[str, str | int | float] = field(default_factory=dict)
