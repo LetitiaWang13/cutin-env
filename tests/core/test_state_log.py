@@ -7,6 +7,7 @@ import pytest
 from cutin.core import (
     AppliedAction,
     ControlAction,
+    CutInReport,
     LogEntry,
     Role,
     ScenarioConfig,
@@ -94,6 +95,7 @@ def test_records_have_no_implicit_validation_hooks() -> None:
         StateSnapshot,
         ControlAction,
         AppliedAction,
+        CutInReport,
         LogEntry,
         SimulationLog,
     ):

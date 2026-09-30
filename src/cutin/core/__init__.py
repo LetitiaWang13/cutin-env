@@ -1,7 +1,7 @@
 """Shared records and boundary validation; no file I/O or backend imports."""
 
 from cutin.core.action import AppliedAction, ControlAction
-from cutin.core.log import LogEntry, SimulationLog, TerminationReason
+from cutin.core.log import CutInReport, LogEntry, SimulationLog, TerminationReason
 from cutin.core.scenario_config import (
     BaselinePolicy,
     CutInConfig,
@@ -19,6 +19,7 @@ __all__ = [
     "BaselinePolicy",
     "ControlAction",
     "CutInConfig",
+    "CutInReport",
     "InitialConditions",
     "InitialVehicle",
     "LogEntry",

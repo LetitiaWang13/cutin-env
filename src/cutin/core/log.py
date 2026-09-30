@@ -25,6 +25,14 @@ class LogEntry:
 
 
 @dataclass(frozen=True)
+class CutInReport:
+    """Actual reference start/completion ticks; None means not observed."""
+
+    start_tick: int | None = None
+    completion_tick: int | None = None
+
+
+@dataclass(frozen=True)
 class SimulationLog:
     """Resolved input, sampled motion, and termination. No event framework yet.
 
@@ -36,3 +44,4 @@ class SimulationLog:
     termination_reason: TerminationReason
     diagnostic: str | None = None
     simulator_settings: dict[str, str | int | float] = field(default_factory=dict)
+    cut_in_report: CutInReport | None = None
