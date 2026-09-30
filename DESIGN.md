@@ -2,7 +2,8 @@
 
 Status: revised proposal; no implementation is implied.
 Confirmed: target only ego-involving collisions, and use completed-run replay
-for the first web version. Removing PREPARE remains open for discussion.
+for the first web version. Keep PREPARE on the roadmap, but defer it until after
+the timed-merge MVP and initial search baseline.
 
 This is a fresh, incremental implementation. `../cutin-v0/` is a reference for
 lessons, algorithms, and tests, not a dependency or a feature checklist. This
@@ -111,9 +112,9 @@ under test is explicit, but are **not searched** in the MVP. Specific gains,
 limits, and numerical defaults will be selected in an integration experiment;
 this document does not claim they are calibrated.
 
-Proposed simplification relative to v0 (pending confirmation): there is **no
-PREPARE phase or merge-time relative position target**. Cut-in timing starts the lateral reference immediately at the
-next control tick. Initial relative position is determined by initial x values;
+MVP decision: **defer PREPARE, rather than discard it**. The first deliverable
+has no merge-time relative-position target. Cut-in timing starts the lateral
+reference immediately at the next control tick. Initial relative position is determined by initial x values;
 it is not a promised gap at merge initiation. Requested lane-change duration
 controls a reference trajectory, not guaranteed completion. Log actual merge
 start/completion, or an incomplete maneuver.
@@ -143,8 +144,17 @@ The old approach supports experiments targeting an approximate merge-time gap.
 The proposal instead searches initial conditions and a timed maneuver, with
 fewer coupled parameters and simpler timing semantics. Both use physical lane
 change dynamics; neither guarantees collision or exact merge completion time.
-If merge-time gap targeting is required, retain PREPARE explicitly rather than
-hiding position adjustment in the generator or adapter.
+After the timed-merge/search baseline is stable, add optional PREPARE explicitly
+in ScenarioConfig and the cut-in controller, not in the generator or adapter.
+Use a separate preparation record with target offset, tolerance, and timeout;
+its absence preserves timed merging. Define whether preparation starts at the
+trigger and log achieved offset, actual merge time, and timeout. Do not silently
+reinterpret the MVP's `start_time_s`, which means merge start. Exact field naming
+and schema evolution are deferred until this feature is implemented.
+
+Following a lead vehicle is called **car-following**; the policy is a
+**car-following controller**. This differs from **lane keeping**, which controls
+lateral position within a lane.
 
 ### 3.2 Other configurations
 
@@ -418,6 +428,61 @@ Simulator/evaluator settings can initially use explicit recorded defaults.
 Library callers do not have to write artifacts. Include a wheel build/install
 smoke check so packaging works outside the repository root.
 
+### 7.1 What belongs in core?
+
+Core is the shared domain vocabulary, not a miscellaneous utilities folder or
+an engine that runs everything. It contains data contracts and their invariants:
+
+| Module | Content | Example question answered |
+| --- | --- | --- |
+| `scenario.py` | ScenarioConfig, road/vehicle/initial-state/cut-in records, validation | What experiment should every component agree on? |
+| `state.py` | Stable vehicle roles, VehicleState, Snapshot, ControlAction | What is the world state at one instant, and what action was requested? |
+| `log.py` | LogSample, SimulationEvent, SimulationLog, termination and provenance | What actually happened during this run? |
+| `metrics.py` | Metrics and pair-level result records, including unavailable values | In what format are assessment results communicated? |
+
+For example, `core.metrics` declares that minimum TTC can be a number or null;
+`evaluation.safety` computes that minimum from samples. Similarly, core declares
+an initial speed, while simulation applies it to backend vehicles. Core may
+validate records and convert them to/from plain JSON values; it does not open
+files, advance physics, compute safety scores, sample candidates, or handle HTTP.
+
+ScenarioConfig is the most important shared abstraction. State, logs, and metrics
+are also shared because evaluation, search, storage, and visualization consume
+them. Algorithm-specific configuration stays outside core. Avoid a universal
+`BaseConfig` or arbitrary dictionary payloads in place of explicit records.
+
+### 7.2 What is application?
+
+Application is a thin **workflow/composition layer**. It connects independent
+components for a user operation without owning their algorithms. Both the CLI
+and a future HTTP API call this layer, avoiding duplicated orchestration.
+
+Conceptually, a single-run workflow does only this:
+
+```python
+log = simulate(scenario, simulator_config)
+metrics = evaluate(log, evaluation_config)
+return RunResult(log=log, metrics=metrics)
+```
+
+A search workflow binds the chosen simulator/evaluator settings to callables,
+then passes them to the falsification loop. The loop still owns candidate
+selection, budget, and ranking; application does not implement a second loop.
+
+`application.storage` loads validated inputs and saves returned artifacts when
+explicitly requested. Writing files is optional and outside the physics and
+metric algorithms. `RunResult` belongs here because it bundles outputs of two
+components for callers; it is not a new core scenario representation.
+
+This layer can initially be a few functions. It is not a frontend, server,
+service locator, global session manager, or framework. Direct library callers
+can still use simulate/evaluate separately. Example boundaries:
+
+- Simulation decides when a run stops; application does not step vehicles.
+- Evaluation decides what TTC means; application does not calculate it.
+- Falsification decides which candidate wins; application does not rank it.
+- Interfaces translate CLI/HTTP input and output; application is transport-free.
+
 ## 8. Future web/API boundary
 
 Confirmed: start with completed-run replay, not live simulation sessions.
@@ -496,13 +561,13 @@ config that reproduces the result. No eligible result is handled explicitly.
 Team decisions to confirm before implementation:
 
 1. Is headless MVP-A followed by search MVP-B the desired delivery sequence?
-2. Can we omit v0's merge-time target-position/PREPARE behavior and optimize
-   initial position plus timed merging instead?
-3. Which fixed ego/front policy and vehicle dimensions should the integration
+2. Which fixed ego/front policy and vehicle dimensions should the integration
    spike establish? Freeze and record them before comparing search results.
 
 Confirmed decisions:
 
+- Defer optional PREPARE until after the timed-merge MVP and initial search
+  baseline; keep it on the roadmap instead of removing the concept.
 - Only collisions involving ego are falsification successes; cut-in/front-only
   collisions are reported separately and excluded from ranking.
 - The first web demonstration uses completed-run Canvas replay. Live backend
