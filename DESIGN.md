@@ -1,6 +1,9 @@
 # Cut-in MVP Design
 
-Status: revised proposal; no implementation is implied.
+Status: agreed architecture with incremental implementation underway. Step 1
+(package foundation, scenario validation, minimal state/log contracts) is
+implemented; see PLAN.md for verified scope. Later contracts remain design
+proposals until their integration steps validate them.
 Confirmed: target only ego-involving collisions, and use completed-run replay
 for the first web version. Keep PREPARE on the roadmap, but defer it until after
 the timed-merge MVP and initial search baseline.
