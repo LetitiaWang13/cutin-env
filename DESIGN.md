@@ -1,6 +1,8 @@
 # Cut-in MVP Design
 
-Status: proposal for team discussion; no implementation is implied.
+Status: revised proposal; no implementation is implied.
+Confirmed: target only ego-involving collisions, and use completed-run replay
+for the first web version. Removing PREPARE remains open for discussion.
 
 This is a fresh, incremental implementation. `../cutin-v0/` is a reference for
 lessons, algorithms, and tests, not a dependency or a feature checklist. This
@@ -109,8 +111,8 @@ under test is explicit, but are **not searched** in the MVP. Specific gains,
 limits, and numerical defaults will be selected in an integration experiment;
 this document does not claim they are calibrated.
 
-Simplification relative to v0: there is **no PREPARE phase or merge-time relative
-position target**. Cut-in timing starts the lateral reference immediately at the
+Proposed simplification relative to v0 (pending confirmation): there is **no
+PREPARE phase or merge-time relative position target**. Cut-in timing starts the lateral reference immediately at the
 next control tick. Initial relative position is determined by initial x values;
 it is not a promised gap at merge initiation. Requested lane-change duration
 controls a reference trajectory, not guaranteed completion. Log actual merge
@@ -121,6 +123,28 @@ policy after completion. It does not veto an unsafe merge, but respects physical
 actuator limits. Ego/front keep their lanes and use a simple bounded following
 policy that can react to partial lateral intrusion. Policy/model identifiers
 and implementation versions are recorded with the run.
+
+#### Comparing the old and proposed maneuver
+
+| Aspect | v0 | Proposed MVP |
+| --- | --- | --- |
+| Phases | WAIT -> PREPARE -> MERGE -> FOLLOW | WAIT -> MERGE -> FOLLOW |
+| Trigger time | Start preparing relative position | Start lateral reference at the next control tick |
+| Position parameter | Desired offset relative to ego at merge start | Initial x positions at t=0 |
+| Preparation | Adjust longitudinal speed until target tolerance or timeout | No relative-position feedback |
+| Merge-time offset | Approximately targeted, but not guaranteed | Emerges from initial conditions and vehicle motion |
+
+Example: in v0, a trigger at 2 s, target offset +10 m, and preparation timeout
+2 s can start merging between 2 s and 4 s. A timeout allows merging even when
++10 m was not achieved. In the proposal, an initial offset +10 m and a start
+time of 2 s start merging near 2 s; the offset at that moment may differ.
+
+The old approach supports experiments targeting an approximate merge-time gap.
+The proposal instead searches initial conditions and a timed maneuver, with
+fewer coupled parameters and simpler timing semantics. Both use physical lane
+change dynamics; neither guarantees collision or exact merge completion time.
+If merge-time gap targeting is required, retain PREPARE explicitly rather than
+hiding position adjustment in the generator or adapter.
 
 ### 3.2 Other configurations
 
@@ -260,8 +284,15 @@ Minima aggregate only applicable samples. TTC is a constant-velocity local
 approximation, not a prediction of future lateral motion; it can miss a pending
 cut-in. Sampled metrics can miss between-step extremes. Document these limits.
 
-Only horizon/collision runs are eligible for the default search ranking. An
-incomplete run may retain observations, but those observations do not establish
+Only horizon runs and runs ending in an ego-involving collision are eligible
+for ranking. A cut-in/front collision without ego involvement is a non-target
+collision, not a falsification success. Since execution stops at the first
+collision, exclude that truncated run from ranking rather than label it safe
+or reward its small gap. Report non-target collisions separately. Simultaneous
+collisions involving ego remain target violations. Use backend collision
+evidence, not negative geometric gap, to determine ego involvement.
+
+An incomplete run may retain observations, but those observations do not establish
 safety. Even a completed collision-free run is not a proof of safety.
 
 ### Search v1
@@ -270,8 +301,9 @@ safety. Even a completed collision-free run is not a proof of safety.
 - Sample independently and uniformly over declared ranges with a local seeded
   RNG and stable parameter order. Scenario seed stays fixed to isolate changes.
 - Validate every sample; rejected samples count toward a finite attempt cap.
-- Budget counts completed eligible runs; errors and road exits count toward the
-  attempt cap, not as unsafe discoveries. Stop at either bound.
+- Budget counts completed eligible runs; errors, road exits, and non-target
+  collisions count toward the attempt cap, not as unsafe discoveries. Stop at
+  either bound; summarize non-target collisions separately.
 - Rank lexicographically: ego collision first, then lower minimum ego-pair gap,
   then lower positive ego-pair TTC. Missing values rank after applicable values;
   stable ties keep the earlier candidate. No invented composite safety score.
@@ -295,36 +327,85 @@ uv.lock
 README.md
 DESIGN.md
 src/cutin/
-  __init__.py               # Small public API
-  config.py                # Scenario/simulator/evaluation configs + validation
-  models.py                # State, action, log, metrics, result records
-  simulation.py            # simulate(), clock, lifecycle, scheduling
-  highway.py               # HighwayAdapter; only highway-env integration
-  controllers.py           # Fixed following and timed cut-in policies
-  evaluation.py            # evaluate() and geometry/metric helpers
-  application.py           # run_scenario(), workflow composition
-  storage.py               # Explicit JSON load/save; no simulation logic
-  cli.py                   # Initially run; search added in MVP-B
-  generation.py            # MVP-B only: search space and sampling
-  falsification.py         # MVP-B only: random search
+  __init__.py               # Package metadata; no eager backend imports
+  core/
+    __init__.py
+    scenario.py             # ScenarioConfig and validation
+    state.py                # Snapshot, VehicleState, ControlAction
+    log.py                  # SimulationLog, events, termination, provenance
+    metrics.py              # Shared Metrics contract, not metric algorithms
+  simulation/
+    __init__.py             # Public simulate() entry point
+    config.py               # SimulatorConfig
+    runner.py               # Lifecycle, clock, controller scheduling
+    controllers.py          # Fixed following and timed cut-in policies
+    adapters/
+      __init__.py
+      highway.py            # Only highway-env integration
+  evaluation/
+    __init__.py             # Public evaluate() entry point
+    config.py               # EvaluationConfig
+    safety.py               # Collision, gap, TTC, geometry helpers
+  generation/               # MVP-B only
+    __init__.py             # Public sample() entry point
+    space.py                # SearchSpace and allowed ranges
+    sampling.py             # Seeded uniform sampling
+  falsification/            # MVP-B only
+    __init__.py             # Public search() entry point
+    config.py               # SearchConfig
+    objective.py            # Eligibility and ego-focused ranking
+    search.py               # Budgeted loop and SearchResult
+  application/
+    __init__.py             # Public run_scenario()/run_search() workflows
+    workflows.py            # Component composition and RunResult
+    storage.py              # Explicit artifact loading/saving
+  interfaces/
+    __init__.py
+    cli.py                  # Thin CLI using application workflows
+    web/                    # Later only: API wrapper and static frontend
 examples/
   baseline.json
   unsafe.json
   search.json              # MVP-B only
 tests/
-  test_config.py
-  test_simulation.py
-  test_highway.py
-  test_controllers.py
-  test_evaluation.py
-  test_generation.py       # MVP-B only
-  test_falsification.py    # MVP-B only
-  test_workflow.py
+  core/                    # Contract validation and serialization
+  simulation/              # Policies, adapter, clock, headless execution
+  evaluation/              # Synthetic logs and metric edge cases
+  generation/              # MVP-B only
+  falsification/           # MVP-B only; fake simulator/evaluator callables
+  integration/             # End-to-end workflows and packaging
 ```
 
-Do not create empty future modules now. Split controllers/evaluation into
-subpackages only when their size warrants it. Future `web/` and `api.py` are
-outer adapters to `application.py`, not dependencies of the core package.
+Directories express component boundaries, not separate deployable services or
+separate distributions. Start with one installable package; independent packages
+can be considered only when there is a concrete distribution need. Each
+component has a small public API in its `__init__.py`; callers must not import
+another component's implementation files. Do not create deferred empty modules.
+
+Configuration belongs to its owning component: ScenarioConfig in core,
+SimulatorConfig in simulation, EvaluationConfig in evaluation, SearchSpace in
+generation, and SearchConfig in falsification. Shared state/log/metric contracts
+belong to core so neither evaluation nor simulation must import the other.
+The SimulationLog contains a resolved simulator-settings JSON record; it must
+not import the concrete SimulatorConfig type into core. Component validators
+produce this record, preserving backend-independent serialization.
+
+Allowed dependency direction:
+
+```text
+interfaces -> application -> simulation / evaluation / generation / falsification
+                              |            |            |             |
+                              +------------+------------+-------------+-> core
+falsification -> generation's public sampling API
+simulation.runner -> simulation.controllers / simulation.adapters
+```
+
+Core imports no other component. Simulation does not import evaluation;
+evaluation does not import simulation. Falsification uses injected simulation
+and evaluation callables, not their concrete implementations. Only application
+selects and binds components. Interfaces contain no control, search, or metric
+algorithms. Controllers are simulation-internal for now, not a separate plugin
+system. Add import-boundary checks alongside packaging tests when implementing.
 
 A run directory initially needs only `scenario.json`, `simulator.json`,
 `evaluation.json`, `log.json`, and `metrics.json`. The log includes resolved
@@ -339,7 +420,10 @@ smoke check so packaging works outside the repository root.
 
 ## 8. Future web/API boundary
 
-Start with completed-run replay, not live simulation sessions:
+Confirmed: start with completed-run replay, not live simulation sessions.
+Browser playback pause/seek changes only the view; backend live step/control is
+deferred. The first web version belongs under `interfaces/web/`:
+
 
 - `POST /runs`: validated scenario plus simulator/evaluator settings; invokes
   `run_scenario` and returns run id, metrics, and log/artifact references.
@@ -365,11 +449,11 @@ contract changes; no contributor silently changes shared field meanings.
 
 | Owner | Main files | First testable deliverable |
 | --- | --- | --- |
-| 1: contracts/application | config, models, application, storage, package setup | Validated JSON round-trip and fake-backed workflow |
-| 2: simulation integration | highway, simulation | Exactly three vehicles, fixed stepping, normalized log |
-| 3: policies/control | controllers | Unit-tested following, lane keeping, timed cut-in and reset |
-| 4: evaluation | evaluation | Synthetic-log collision/gap/TTC tests including null cases |
-| 5: generation/tooling | CLI, then generation/falsification | CLI on fake workflow, seeded sampler and fake-backed search |
+| 1: contracts/application | core/, application/, package setup | Validated JSON round-trip and fake-backed workflow |
+| 2: simulation integration | simulation/runner.py, config.py, adapters/ | Exactly three vehicles, fixed stepping, normalized log |
+| 3: policies/control | simulation/controllers.py | Unit-tested following, lane keeping, timed cut-in and reset |
+| 4: evaluation | evaluation/ | Synthetic-log collision/gap/TTC tests including null cases |
+| 5: generation/tooling | interfaces/cli.py, then generation/ and falsification/ | CLI on fake workflow, seeded sampler and fake-backed search |
 
 Owner 5 can build against fake callables before highway integration is ready;
 owner 4 can use synthetic logs. Owner 1 and owner 2 agree lifecycle/result/error
@@ -414,11 +498,16 @@ Team decisions to confirm before implementation:
 1. Is headless MVP-A followed by search MVP-B the desired delivery sequence?
 2. Can we omit v0's merge-time target-position/PREPARE behavior and optimize
    initial position plus timed merging instead?
-3. Should ego collision be the falsification objective, as proposed, or any
-   vehicle collision? Metrics report both regardless.
-4. Which fixed ego/front policy and vehicle dimensions should the integration
+3. Which fixed ego/front policy and vehicle dimensions should the integration
    spike establish? Freeze and record them before comparing search results.
-5. Is completed-run Canvas replay sufficient for the first web demonstration,
-   rather than live pause/step control?
+
+Confirmed decisions:
+
+- Only collisions involving ego are falsification successes; cut-in/front-only
+  collisions are reported separately and excluded from ranking.
+- The first web demonstration uses completed-run Canvas replay. Live backend
+  pause/step control is deferred.
+- Organize code into component subpackages with explicit public APIs and
+  dependency direction, rather than flat top-level implementation modules.
 
 > Recap: Build the smallest headless config-to-log-to-metrics slice first. Keep concrete scenarios, search ranges, simulator settings, and evaluation settings separate; add random search and web replay through the same contracts only after that slice is stable.
