@@ -55,7 +55,8 @@ PY
 - `core/state.py`: vehicle roles/states and `Snapshot(tick, vehicles)`.
   Integer tick is the authoritative simulation clock; seconds = tick / physics_hz.
 - `core/action.py`: acceleration/steering requests and role-keyed applied actions.
-- `core/log.py`: scenario, sampled state/actions, termination, optional diagnostic.
+- `core/log.py`: scenario, entries, `termination_reason` (TerminationReason enum),
+  and optional diagnostic.
   No event framework or per-constructor lifecycle validation.
 
 TOML is for hand-edited scenarios; `to_dict()` expands defaults into JSON-compatible

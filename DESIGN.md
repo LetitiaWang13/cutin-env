@@ -224,7 +224,7 @@ persisted contract has `schema_version`; v1 has no v0 compatibility requirement.
 - `ControlAction`: desired longitudinal acceleration and steering angle.
 - `LogEntry`: one snapshot and the actually applied, bounded actions for the
   interval ending at that snapshot (none for the initial entry).
-- `SimulationLog`: initially just scenario, entries, termination, and optional
+- `SimulationLog`: initially just scenario, entries, `termination_reason`, and optional
   diagnostic. Resolved simulator settings/provenance follow the backend probe.
   Events and richer maneuver reports are deferred until control implementation
   demonstrates their need; no event framework is required for the foundation.
@@ -236,7 +236,7 @@ persisted contract has `schema_version`; v1 has no v0 compatibility requirement.
 - `SearchResult`: best config/metrics (nullable), attempt/completion/error counts,
   objective version, and references to the winning run.
 
-Proposed terminations: `horizon`, `collision`, `road_exit`, `error`, `cancelled`.
+`TerminationReason` values: `horizon`, `collision`, `road_exit`, `error`, `cancelled`.
 Errors/cancellation retain available partial logs and diagnostics. They must not
 be mislabeled as successful safe runs; input validation errors occur before a
 run exists. Road exit is an incomplete assessment, not a safety success.
@@ -454,7 +454,7 @@ an engine that runs everything. It contains data contracts and their invariants:
 | `scenario.py` | ScenarioConfig, road/vehicle/initial-state/cut-in records, validation | What experiment should every component agree on? |
 | `state.py` | Stable vehicle roles, VehicleState, Snapshot with integer ticks | What is the world state at one instant? |
 | `action.py` | ControlAction and role-keyed AppliedAction | What action was requested/applied? |
-| `log.py` | LogEntry, SimulationLog, termination and diagnostic | What actually happened during this run? |
+| `log.py` | LogEntry, SimulationLog, TerminationReason and diagnostic | What actually happened during this run? |
 | `metrics.py` | Metrics and pair-level result records, including unavailable values | In what format are assessment results communicated? |
 
 For example, `core.metrics` declares that minimum TTC can be a number or null;

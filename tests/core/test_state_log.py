@@ -12,7 +12,7 @@ from cutin.core import (
     ScenarioConfig,
     SimulationLog,
     Snapshot,
-    Termination,
+    TerminationReason,
     VehicleState,
 )
 
@@ -52,7 +52,7 @@ def test_log_keeps_input_actions_and_integer_ticks() -> None:
         (AppliedAction(Role.EGO, ControlAction(0, 0)),),
     )
     scenario = ScenarioConfig()
-    log = SimulationLog(scenario, (initial, terminal), Termination.HORIZON)
+    log = SimulationLog(scenario, (initial, terminal), TerminationReason.HORIZON)
     assert log.scenario == scenario
     assert log.entries == (initial, terminal)
     assert log.entries[0].applied_actions == ()
@@ -64,10 +64,10 @@ def test_error_can_preserve_partial_history_and_diagnostic() -> None:
     log = SimulationLog(
         ScenarioConfig(),
         (LogEntry(Snapshot(0, (vehicle(),))),),
-        Termination.ERROR,
+        TerminationReason.ERROR,
         diagnostic="step failed",
     )
-    assert log.termination == Termination.ERROR
+    assert log.termination_reason == TerminationReason.ERROR
     assert log.diagnostic == "step failed"
 
 

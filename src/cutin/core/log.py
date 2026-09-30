@@ -8,7 +8,7 @@ from cutin.core.scenario import ScenarioConfig
 from cutin.core.state import Snapshot
 
 
-class Termination(StrEnum):
+class TerminationReason(StrEnum):
     HORIZON = "horizon"
     COLLISION = "collision"
     ROAD_EXIT = "road_exit"
@@ -33,5 +33,5 @@ class SimulationLog:
 
     scenario: ScenarioConfig
     entries: tuple[LogEntry, ...]
-    termination: Termination
+    termination_reason: TerminationReason
     diagnostic: str | None = None
