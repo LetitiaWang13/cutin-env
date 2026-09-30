@@ -5,7 +5,7 @@ from enum import StrEnum
 
 from cutin.core.action import AppliedAction
 from cutin.core.scenario import ScenarioConfig
-from cutin.core.state import Snapshot
+from cutin.core.state import StateSnapshot
 
 
 class TerminationReason(StrEnum):
@@ -20,7 +20,7 @@ class TerminationReason(StrEnum):
 class LogEntry:
     """One snapshot and its interval's applied actions; the initial entry has none."""
 
-    snapshot: Snapshot
+    snapshot: StateSnapshot
     applied_actions: tuple[AppliedAction, ...] = ()
 
 

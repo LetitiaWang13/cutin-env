@@ -12,7 +12,7 @@ from cutin.core.scenario import (
     VehicleDimensions,
     validate_scenario,
 )
-from cutin.core.state import Role, Snapshot, VehicleState
+from cutin.core.state import Role, StateSnapshot, VehicleState
 
 __all__ = [
     "AppliedAction",
@@ -26,7 +26,7 @@ __all__ = [
     "Role",
     "ScenarioConfig",
     "SimulationLog",
-    "Snapshot",
+    "StateSnapshot",
     "TerminationReason",
     "VehicleDimensions",
     "VehicleState",

@@ -219,7 +219,7 @@ persisted contract has `schema_version`; v1 has no v0 compatibility requirement.
 ### Minimal types
 
 - `VehicleState`: role, x/y, heading, speed, length/width, collision flag.
-- `Snapshot`: integer tick and immutable tuple of vehicle states; no generic
+- `StateSnapshot`: integer tick and immutable tuple of vehicle states; no generic
   vehicle-count validation.
 - `ControlAction`: desired longitudinal acceleration and steering angle.
 - `LogEntry`: one snapshot and the actually applied, bounded actions for the
@@ -267,8 +267,8 @@ interface can be added when an adaptive optimizer actually needs one.
 The minimal internal adapter seam is:
 
 ```python
-reset(scenario, simulator_config) -> Snapshot
-step(actions_by_role, dt_s) -> Snapshot
+reset(scenario, simulator_config) -> StateSnapshot
+step(actions_by_role, dt_s) -> StateSnapshot
 close() -> None
 ```
 
@@ -356,7 +356,7 @@ src/cutin/
   core/
     __init__.py
     scenario.py             # ScenarioConfig and validation
-    state.py                # Snapshot(tick, vehicles), VehicleState
+    state.py                # StateSnapshot(tick, vehicles), VehicleState
     action.py               # ControlAction, AppliedAction
     log.py                  # Small SimulationLog and termination records
     metrics.py              # Shared Metrics contract, not metric algorithms
@@ -452,7 +452,7 @@ an engine that runs everything. It contains data contracts and their invariants:
 | Module | Content | Example question answered |
 | --- | --- | --- |
 | `scenario.py` | ScenarioConfig, road/vehicle/initial-state/cut-in records, validation | What experiment should every component agree on? |
-| `state.py` | Stable vehicle roles, VehicleState, Snapshot with integer ticks | What is the world state at one instant? |
+| `state.py` | Stable vehicle roles, VehicleState, StateSnapshot with integer ticks | What is the world state at one instant? |
 | `action.py` | ControlAction and role-keyed AppliedAction | What action was requested/applied? |
 | `log.py` | LogEntry, SimulationLog, TerminationReason and diagnostic | What actually happened during this run? |
 | `metrics.py` | Metrics and pair-level result records, including unavailable values | In what format are assessment results communicated? |

@@ -52,7 +52,7 @@ PY
   `from_dict()` parses TOML/JSON values and validates automatically. Python-created
   or modified records must be validated explicitly before execution. Constructors
   do not perform hidden checks. Unknown fields and invalid external values fail.
-- `core/state.py`: vehicle roles/states and `Snapshot(tick, vehicles)`.
+- `core/state.py`: vehicle roles/states and `StateSnapshot(tick, vehicles)`.
   Integer tick is the authoritative simulation clock; seconds = tick / physics_hz.
 - `core/action.py`: acceleration/steering requests and role-keyed applied actions.
 - `core/log.py`: scenario, entries, `termination_reason` (TerminationReason enum),

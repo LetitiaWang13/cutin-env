@@ -23,8 +23,8 @@ class VehicleState:
 
 
 @dataclass(frozen=True)
-class Snapshot:
-    """No vehicle-count constraint; time in seconds is tick / physics_hz."""
+class StateSnapshot:
+    """Vehicle states at one tick; time in seconds is tick / physics_hz."""
 
     tick: int
     vehicles: tuple[VehicleState, ...]
