@@ -1,6 +1,12 @@
 // Replay selects stored snapshots only. It never integrates vehicle dynamics.
+const LANE_DASH = [18, 14];
 export function frameIndex(seconds, hz, count) {
   return Math.max(0, Math.min(count - 1, Math.floor(seconds * hz)));
+}
+export function laneDashOffset(cameraX, scale, startX) {
+  // Pattern is anchored at world x=0, including when the road start is clipped.
+  const period = LANE_DASH[0] + LANE_DASH[1];
+  return ((cameraX * scale + startX) % period + period) % period;
 }
 export function quantity(value, unit) {
   return value === null ? 'n/a' : `${value.toFixed(3)} ${unit}`;
@@ -81,11 +87,13 @@ async function start() {
     ctx.fillStyle = '#586067';
     ctx.fillRect(startX, y(-laneWidth / 2), endX - startX, laneWidth * road.lane_count * scale);
     ctx.strokeStyle = '#edf0ef';
+    ctx.lineDashOffset = laneDashOffset(originX, scale, startX);
     for (let lane = 0; lane <= road.lane_count; lane++) {
-      ctx.setLineDash(lane === 0 || lane === road.lane_count ? [] : [18, 14]);
+      ctx.setLineDash(lane === 0 || lane === road.lane_count ? [] : LANE_DASH);
       ctx.beginPath(); ctx.moveTo(startX, y((lane - 0.5) * laneWidth)); ctx.lineTo(endX, y((lane - 0.5) * laneWidth)); ctx.stroke();
     }
     ctx.setLineDash([]);
+    ctx.lineDashOffset = 0;
     const colors = {ego: '#50b4ff', front: '#64dc82', cut_in: '#ff9632'};
     snapshot.vehicles.forEach(v => {
       ctx.save(); ctx.translate(x(v.x_m), y(v.y_m)); ctx.rotate(v.heading_rad);
