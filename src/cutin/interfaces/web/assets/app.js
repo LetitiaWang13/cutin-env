@@ -12,6 +12,29 @@ export function sliderHint(value, sliderValue, low, high, step) {
   if (!Number.isFinite(value) || value === sliderValue) return '';
   return `Exact number retained; slider ${low}–${high}, step ${step}.`;
 }
+export function initialPositionIssues(scenario, clearance = 0.1) {
+  const issues = [], roles = ['ego', 'front', 'cut_in'];
+  const length = scenario.vehicles.length_m, width = scenario.vehicles.width_m;
+  const required = length + clearance;
+  roles.forEach(role => {
+    const x = scenario.initial[role].x_m;
+    if (Number.isFinite(x) && (x < length / 2 || x > scenario.road.length_m - length / 2)) {
+      issues.push({paths: [`scenario.initial.${role}.x_m`], message: `${role}: center x ${x.toFixed(3)} m must be within ${(length / 2).toFixed(3)}–${(scenario.road.length_m - length / 2).toFixed(3)} m so the full vehicle stays on the road.`});
+    }
+  });
+  const ego = scenario.initial.ego.x_m, front = scenario.initial.front.x_m;
+  if (Number.isFinite(ego) && Number.isFinite(front) && front <= ego) {
+    issues.push({paths: ['scenario.initial.ego.x_m', 'scenario.initial.front.x_m'], message: `Front must be ahead of ego: front x ${front.toFixed(3)} m, ego x ${ego.toFixed(3)} m.`});
+  }
+  roles.forEach((a, index) => roles.slice(index + 1).forEach(b => {
+    const first = scenario.initial[a], second = scenario.initial[b];
+    const distance = Math.abs(first.x_m - second.x_m);
+    if (Number.isFinite(distance) && Math.abs(first.lane - second.lane) * scenario.road.lane_width_m <= width && distance + 1e-9 < required) {
+      issues.push({paths: [`scenario.initial.${a}.x_m`, `scenario.initial.${b}.x_m`], message: `${a}/${b}: center separation ${Number(distance.toFixed(9))} m; require at least ${required.toFixed(3)} m (vehicle length ${length.toFixed(3)} m + clearance ${clearance.toFixed(3)} m). Move these vehicles farther apart.`});
+    }
+  }));
+  return issues;
+}
 export function quantity(value, unit) {
   return value === null ? 'n/a' : `${value.toFixed(3)} ${unit}`;
 }
@@ -52,6 +75,7 @@ async function start() {
     ['evaluation.ttc_warning_s', 'TTC warning (s)', 0, null, 'any'],
   ];
   const controls = new Map();
+  let busy = false;
   let defaults, input, record = null, hz = 30, index = 0, playing = false, last = null, time = 0;
   const get = (object, path) => path.split('.').reduce((value, key) => value[key], object);
   function set(object, path, value) {
@@ -66,6 +90,28 @@ async function start() {
     return data;
   }
   function message(text) { $('status').textContent = text; }
+  function feedback(text, kind) {
+    $('run-feedback').textContent = text;
+    $('run-feedback').className = `feedback ${kind}`;
+    $('run-feedback').hidden = false;
+  }
+  function updatePositions() {
+    if (!input) return [];
+    const scenario = structuredClone(input.scenario);
+    ['ego', 'front', 'cut_in'].forEach(role => {
+      scenario.initial[role].x_m = controls.get(`scenario.initial.${role}.x_m`).number.valueAsNumber;
+      controls.get(`scenario.initial.${role}.x_m`).number.removeAttribute('aria-invalid');
+    });
+    const issues = initialPositionIssues(scenario);
+    $('position-error-list').replaceChildren();
+    issues.forEach(issue => {
+      const item = document.createElement('li'); item.textContent = issue.message; $('position-error-list').append(item);
+      issue.paths.forEach(path => controls.get(path).number.setAttribute('aria-invalid', 'true'));
+    });
+    $('position-errors').hidden = !issues.length;
+    $('run').disabled = busy || !!issues.length;
+    return issues;
+  }
   function preset(unsafe = false) {
     input = structuredClone(defaults);
     if (unsafe) {
@@ -78,6 +124,8 @@ async function start() {
       controls.get(path).sync();
     });
     updateOffsets();
+    $('run-feedback').hidden = true;
+    $('go-replay').hidden = true;
   }
   function pause() { playing = false; last = null; $('play').textContent = 'Play'; }
   function draw() {
@@ -121,6 +169,7 @@ async function start() {
     $('clock').textContent = 'No samples';
     $('seek').max = Math.max(0, record.log.entries.length - 1);
     $('seek').disabled = $('play').disabled = !record.log.entries.length;
+    $('play').classList.toggle('replay-ready', !!record.log.entries.length);
     const m = record.metrics;
     $('assessment').textContent = `${m.assessment_status} · termination: ${record.log.termination_reason} · ego collision: ${m.ego_collision} · gap warning: ${m.gap_warning} · TTC warning: ${m.ttc_warning}`;
     $('metrics').textContent = JSON.stringify({id, metrics: m, simulator: record.log.simulator_settings, diagnostic: record.log.diagnostic}, null, 2);
@@ -132,7 +181,7 @@ async function start() {
       });
       $('pairs').append(row);
     });
-    message(`Loaded ${id}. Recorded samples only; complete does not mean safe.`);
+    message(`Loaded ${id}. ${record.log.entries.length ? 'Click Play to start recorded replay; no refresh needed.' : 'No replay samples; check termination and diagnostics.'} Complete does not mean safe.`);
     draw();
   }
   async function refresh(selected = '') {
@@ -143,14 +192,28 @@ async function start() {
     if (selected) $('saved').value = selected;
   }
   $('scenario-form').addEventListener('submit', async event => {
-    event.preventDefault(); $('run').disabled = true; pause(); message('Computing and saving run…');
+    event.preventDefault();
+    if (busy || updatePositions().length) return;
+    busy = true; $('run').disabled = true; $('run').textContent = 'Running and saving…';
+    $('go-replay').hidden = true;
+    feedback('Running… wait for the replay-ready confirmation below.', '');
+    pause(); message('Computing and saving run…');
     try {
       fields.forEach(([path]) => set(input, path, Number(document.querySelector(`[data-path="${path}"]`).value)));
       const result = await request('/api/runs', {method: 'POST', headers: {'Content-Type': 'application/json', 'X-Cutin-Request': '1'}, body: JSON.stringify(input)});
-      show(await request(`/api/runs/${result.id}`), result.id); await refresh(result.id);
-    } catch (error) { message(error.message); }
-    finally { $('run').disabled = false; }
+      const saved = await request(`/api/runs/${result.id}`);
+      show(saved, result.id);
+      const hasSamples = !!saved.log.entries.length;
+      feedback(`Saved ${result.id}. ${hasSamples ? 'The replay and Metrics on the right are already loaded. Click Play to begin; no refresh needed.' : 'The saved run has no replay samples. Check its termination and diagnostics on the right.'}`, saved.log.termination_reason === 'error' ? 'error' : 'success');
+      $('go-replay').hidden = !hasSamples;
+      try { await refresh(result.id); } catch (error) { message(`Replay loaded, but saved-list refresh failed: ${error.message}`); }
+    } catch (error) { feedback(`Run failed: ${error.message}`, 'error'); message(error.message); }
+    finally { busy = false; $('run').textContent = 'Run and save'; updatePositions(); }
   });
+  $('go-replay').onclick = () => {
+    document.querySelector('.replay-panel').scrollIntoView({behavior: 'smooth', block: 'start'});
+    $('play').focus({preventScroll: true});
+  };
   $('baseline').onclick = () => preset(); $('unsafe').onclick = () => preset(true);
   $('refresh').onclick = () => refresh().catch(error => message(error.message));
   $('load').onclick = async () => {
@@ -175,6 +238,7 @@ async function start() {
       return Number.isFinite(delta) ? `${delta >= 0 ? '+' : ''}${delta.toFixed(2)} m` : 'n/a';
     };
     $('offsets').textContent = `Initial center offsets · front − ego: ${offset('front')} · cut-in − ego: ${offset('cut_in')}`;
+    updatePositions();
   }
   fields.forEach(([path, text, min, max, step], index) => {
     const field = document.createElement('div'); field.className = 'field';

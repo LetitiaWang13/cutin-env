@@ -21,6 +21,8 @@
         <div class="vehicle-card cut-in"><h3>Cut-in <small>lane 0</small></h3><div id="cut-in-fields"></div></div>
       </div>
       <output id="offsets" class="offsets" aria-live="polite"></output>
+      <p class="hint">Same-lane center spacing needs vehicle length + 0.1 m clearance. Adjacent lanes may share x when their footprints do not overlap.</p>
+      <div id="position-errors" class="feedback error" role="alert" hidden><strong>Fix initial positions before running</strong><ul id="position-error-list"></ul></div>
     </fieldset>
     <fieldset><legend>Cut-in maneuver</legend><div id="cut-in-maneuver-fields" class="field-grid"></div>
       <p class="hint">Start and reference duration are independent. Actual completion depends on tracking; the merge may extend beyond the horizon.</p>
@@ -31,6 +33,8 @@
     </details>
     <p class="hint">Sliders are quick-adjust controls. Number boxes retain precise values, including values outside a slider's convenience range.</p>
     <button id="run" type="submit">Run and save</button>
+    <div id="run-feedback" class="feedback" role="status" hidden></div>
+    <button id="go-replay" type="button" hidden>Go to loaded replay</button>
   </form>
 </section>
 <section class="replay-panel">

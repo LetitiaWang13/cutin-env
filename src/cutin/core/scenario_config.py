@@ -149,17 +149,29 @@ def validate_scenario(scenario: ScenarioConfig) -> None:
         number(f"initial.{name}.speed_mps", state.speed_mps, minimum=0)
         half_length = dimensions.length_m / 2
         if not half_length <= state.x_m <= road.length_m - half_length:
-            raise ValueError("initial vehicle footprint must be inside the road")
+            raise ValueError(
+                f"initial.{name}.x_m={state.x_m} m is outside the road: "
+                f"center must be within [{half_length}, "
+                f"{road.length_m - half_length}] m to fit the vehicle footprint"
+            )
     if (initial.ego.lane, initial.front.lane, initial.cut_in.lane) != (1, 1, 0):
         raise ValueError("ego/front must start in lane 1 and cut_in in lane 0")
     if initial.front.x_m <= initial.ego.x_m:
-        raise ValueError("front must start ahead of ego")
-    for a, b in combinations(states, 2):
+        raise ValueError(
+            f"front must start ahead of ego: front x={initial.front.x_m} m, "
+            f"ego x={initial.ego.x_m} m"
+        )
+    named_states = zip(("ego", "front", "cut_in"), states, strict=True)
+    for (name_a, a), (name_b, b) in combinations(named_states, 2):
         if (
             abs(a.x_m - b.x_m) <= dimensions.length_m
             and abs(a.lane - b.lane) * road.lane_width_m <= dimensions.width_m
         ):
-            raise ValueError("initial vehicle footprints overlap or touch")
+            raise ValueError(
+                f"{name_a}/{name_b}: initial vehicle footprints overlap or touch; "
+                f"center separation {abs(a.x_m - b.x_m):.3f} m must exceed "
+                f"vehicle length {dimensions.length_m:.3f} m"
+            )
 
     policy, cut_in = scenario.baseline_policy, scenario.cut_in
     number("desired_speed_mps", policy.desired_speed_mps, minimum=0)

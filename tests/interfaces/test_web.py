@@ -1,6 +1,7 @@
 """Local HTTP boundaries and replay persistence, without browser physics."""
 
 import json
+import re
 import shutil
 import subprocess
 from http.client import HTTPConnection
@@ -69,6 +70,7 @@ def test_assets_defaults_and_completed_run_reload(web):
     status, content, _ = request(web, "POST", "/api/runs", defaults)
     assert status == 201
     identifier = json.loads(content)["id"]
+    assert re.fullmatch(r"frontend-\d{8}-\d{6}Z-[0-9a-f]{8}", identifier)
     saved = web.directory / identifier
     assert (saved / "metrics.json").is_file()
     status, content, _ = request(web, "GET", f"/api/runs/{identifier}")

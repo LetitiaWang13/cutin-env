@@ -23,6 +23,16 @@ with TemporaryDirectory() as directory:
             page.goto(f"http://127.0.0.1:{server.server_port}/")
             expect(page.locator("#status")).to_contain_text("Ready.")
             assert page.locator("#scenario-form input[type=range]").count() == 12
+            invalid_front = page.get_by_label("Front x (m)", exact=True)
+            invalid_front.fill("55.05")
+            expect(page.locator("#position-errors")).to_be_visible()
+            expect(page.locator("#position-errors")).to_contain_text("ego/front")
+            expect(page.locator("#position-errors")).to_contain_text("5.100 m")
+            expect(page.get_by_role("button", name="Run and save")).to_be_disabled()
+            expect(invalid_front).to_have_attribute("aria-invalid", "true")
+            page.get_by_role("button", name="Baseline", exact=True).click()
+            expect(page.locator("#position-errors")).to_be_hidden()
+            expect(page.get_by_role("button", name="Run and save")).to_be_enabled()
             positions = [
                 page.get_by_label(f"{role} x (m)", exact=True).bounding_box()
                 for role in ("Ego", "Front", "Cut-in")
@@ -61,7 +71,12 @@ with TemporaryDirectory() as directory:
             # cannot represent the typed precision/range.
             page.get_by_role("button", name="Run and save").click()
             expect(page.locator("#status")).to_contain_text("Loaded")
+            expect(page.locator("#run-feedback")).to_contain_text("already loaded")
+            expect(page.locator("#run-feedback")).to_contain_text("no refresh needed")
+            page.get_by_role("button", name="Go to loaded replay").click()
+            expect(page.locator("#play")).to_be_focused()
             identifier = page.locator("#status").inner_text().split()[1].rstrip(".")
+            assert identifier.startswith("frontend-")
             saved = page.request.get(
                 f"http://127.0.0.1:{server.server_port}/api/runs/{identifier}"
             ).json()
@@ -69,6 +84,8 @@ with TemporaryDirectory() as directory:
             assert saved["log"]["scenario"]["initial"]["front"]["x_m"] == 1234.125
             page.get_by_role("button", name="Unsafe regression").click()
             expect(front).to_have_value("110")
+            expect(page.locator("#position-errors")).to_be_hidden()
+            expect(page.get_by_role("button", name="Run and save")).to_be_enabled()
             expect(page.locator(".front .precision-hint").first).to_be_hidden()
             expect(page.get_by_label("Front x (m) slider", exact=True)).to_have_value(
                 "110"

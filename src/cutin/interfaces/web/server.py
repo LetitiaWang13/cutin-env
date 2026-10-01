@@ -3,6 +3,7 @@
 import json
 import re
 from dataclasses import asdict
+from datetime import UTC, datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from importlib.resources import files
 from pathlib import Path
@@ -15,6 +16,7 @@ from cutin.application.storage import load_run_documents
 from cutin.core import ScenarioConfig
 from cutin.evaluation import EvaluationConfig
 from cutin.evaluation.config import validate_evaluation_config
+from cutin.interfaces.web.validation import validate_initial_clearance
 from cutin.simulation import SimulatorConfig
 from cutin.simulation.config import validate_simulator_config
 
@@ -175,6 +177,7 @@ class Handler(BaseHTTPRequestHandler):
                     "request needs scenario and optional simulator/evaluation"
                 )
             scenario = ScenarioConfig.from_dict(payload["scenario"])
+            validate_initial_clearance(scenario)
             simulator = SimulatorConfig(**payload.get("simulator", {}))
             evaluation = EvaluationConfig(**payload.get("evaluation", {}))
             validate_simulator_config(simulator)
@@ -183,10 +186,8 @@ class Handler(BaseHTTPRequestHandler):
                 raise ValueError(
                     "web runs are limited to 60 seconds and 120 physics Hz"
                 )
-        except (ValueError, TypeError, KeyError, OverflowError):
-            self.respond(
-                400, {"error": "invalid scenario/settings or web run limits exceeded"}
-            )
+        except (ValueError, TypeError, KeyError, OverflowError) as error:
+            self.respond(400, {"error": str(error)})
             return
         except TimeoutError:
             self.respond(408, {"error": "request body timed out"})
@@ -196,7 +197,8 @@ class Handler(BaseHTTPRequestHandler):
             return
         try:
             result = self.server.workflow(scenario, simulator, evaluation)
-            identifier = uuid4().hex
+            timestamp = datetime.now(UTC).strftime("%Y%m%d-%H%M%SZ")
+            identifier = f"frontend-{timestamp}-{uuid4().hex[:8]}"
             save_run(result, self.server.directory / identifier)
             self.respond(201, {"id": identifier, "metrics": asdict(result.metrics)})
         except (ValueError, TypeError) as error:

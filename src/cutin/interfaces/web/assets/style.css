@@ -25,6 +25,13 @@ input[type=range] { width: 100%; accent-color: #66baff; padding: 4px 0; cursor: 
 .front input[type=range] { accent-color: #64dc82; }
 .cut-in input[type=range], #cut-in-maneuver-fields input[type=range] { accent-color: #ff9632; }
 .precision-hint { display: block; color: #e2bc79; font-size: 11px; line-height: 1.35; margin-top: 3px; }
+.feedback { margin-top: 12px; padding: 12px; border: 1px solid #647e96; border-radius: 6px; overflow-wrap: anywhere; font-size: 13px; line-height: 1.5; }
+.feedback.error { background: #49232b; border-color: #ff7483; color: #ffe0e4; }
+.feedback.success { background: #193e32; border-color: #69d6a1; color: #d2ffe6; }
+.feedback ul { margin: 8px 0 0; padding-left: 18px; }
+input[aria-invalid=true] { border: 2px solid #ff7483; background: #3b2029; }
+#go-replay { width: 100%; margin-top: 8px; }
+#play.replay-ready { background: #244d72; border-color: #66baff; font-weight: 600; }
 .hint { color: #a9b9c9; font-size: 12px; line-height: 1.5; margin: 8px 0 12px; }
 .offsets { display: block; color: #c5dfef; font-size: 12px; padding-top: 10px; border-top: 1px solid #43556a; }
 .advanced { border: 1px solid #43556a; border-radius: 8px; padding: 12px; }
