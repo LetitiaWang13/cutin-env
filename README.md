@@ -6,9 +6,10 @@ for architecture and PLAN.md for delivery order.
 ## Current scope
 
 The runner executes configured car-following, lane keeping, and cut-in policies
-through CutInEnv(HighwayEnv), with optional native visualization. Metrics, a
-packaged CLI command, and web visualization are not implemented yet. Numerical defaults are experimental,
-not safety-calibrated.
+through CutInEnv(HighwayEnv), with optional native visualization. An independent
+evaluator now computes collision, gap, and TTC from logs. A packaged CLI, search,
+and web visualization are not implemented yet. Numerical defaults and warning
+thresholds are experimental, not safety-calibrated.
 Only highway-env adapter/translation modules import the backend. Core and the
 runner's public imports remain backend-independent.
 Runtime dependencies are highway-env, Gymnasium, and NumPy (plus FOSS dependencies).
@@ -38,10 +39,51 @@ The baseline runs 10 seconds and completes a lane-0-to-lane-1 merge without
 collision in the locked setup. The unsafe fixture deliberately causes an
 **ego/cut-in collision**, not a front-only collision. These are regression
 examples, not a safety guarantee. Results print final states, termination, and
-actual cut-in reference-start/completion ticks. See native visualization below.
+actual cut-in reference-start/completion ticks, and safety metrics. See native
+visualization below. `--output` still exports the raw log, not a log/metrics bundle.
 
 `simulate(scenario, SimulatorConfig())` executes policies by default. Supplying
 explicit `actions=...` selects fixed-action diagnostic mode instead.
+
+## Evaluate safety metrics
+
+```python
+from dataclasses import asdict
+from cutin.evaluation import EvaluationConfig, evaluate
+
+# log comes from simulate(); evaluation never runs physics or reads files.
+metrics = evaluate(log, EvaluationConfig(gap_warning_m=2, ttc_warning_s=1.5))
+print(metrics.assessment_status, metrics.ego_collision)
+print(asdict(metrics))  # JSON-compatible; unavailable quantities are None/null.
+```
+
+- Metrics report ego/front and ego/cut-in minimum signed longitudinal gap and
+  positive longitudinal TTC, with their observed integer ticks. Convert ticks
+  to seconds using `metrics.physics_hz`; exact ties keep the first sample.
+- Heading-aware world-axis footprint bounds determine lateral applicability.
+  No lateral overlap means no applicable gap/TTC. Zero/negative gap or
+  non-closing motion means no positive TTC, not TTC=0 or infinity.
+- Backend collision flags are authoritative; negative gap is not collision proof.
+  First collision roles indicate flagged participants, not exact collision pairs.
+- `complete`: horizon reached or an ego-involving collision ended the run.
+  `non_target_collision`: only other vehicles collided and stopped execution.
+  `incomplete`: road exit, error, cancellation, or missing ego observations.
+  Only complete assessments can
+  enter later search ranking; complete does not mean safe.
+- Strictly-below threshold warnings are summaries, not the falsification objective.
+  Threshold changes never change raw minima; partial warnings remain partial.
+- Evaluation requires resolved physics_hz metadata, consecutive samples from
+  tick 0, finite valid state values, and consistent termination evidence.
+  Malformed logs raise ValueError rather than becoming successful assessments.
+- For multiple vehicles sharing a role, minima aggregate all ego/other-role
+  combinations. No persistent vehicle identity is inferred from snapshot order.
+
+Baseline has no collision and minimum ego/cut-in gap about 12.797 m. Unsafe has
+an ego/cut-in collision at tick 18 (0.6 s) and negative gap. Both have no applicable
+positive TTC: the unsafe lateral merge intrudes into an already-overlapping
+longitudinal footprint. TTC is a local constant-velocity approximation, not a
+prediction of lateral motion. Conservative bounds and sampling can overstate
+proximity or miss between-step extremes; no run establishes controller safety.
 
 ## Native highway-env visualization
 
@@ -149,6 +191,11 @@ values for future API/artifact output. Core performs no file I/O. Three-vehicle
 restrictions live only in scenario validation, not in generic snapshots/logs.
 The simulation component is now split into:
 
+- `core/metrics.py`: immutable result contracts and assessment status, without
+  metric algorithms. `core/geometry.py` shares footprint conventions between
+  evaluation, controllers, and road-bound checks.
+- `evaluation/config.py`: experimental warning thresholds, validated at evaluation.
+- `evaluation/safety.py`: pure offline evaluate(log, config), backend-independent.
 - `simulation/config.py`: SimulatorConfig (frequencies and generic actuator limits).
 - `simulation/runner.py`: `simulate()` validates inputs, supplies dt, bounds generic
   actions, decides termination, assembles the log, and closes the adapter. Every

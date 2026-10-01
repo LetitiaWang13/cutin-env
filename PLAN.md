@@ -112,12 +112,30 @@ Inserted before metrics to let developers visually inspect actual driving.
 - Real desktop appearance/input remains a manual smoke check; automated native
   window-event tests use SDL dummy. One native viewer at a time is supported.
 
-## 4. Evaluation and user entry point — next
+## 4a. Independent safety metrics — complete
 
-- Define Metrics and implement collision/gap/TTC using synthetic logs first.
-- Connect the evaluator to real simulation logs.
-- Add thin application workflows, explicit artifact storage, and a CLI.
-- Establish benign/unsafe regression examples and complete the headless MVP.
+- Added core Metrics/PairMetrics and explicit complete/non-target/incomplete
+  assessment status. Minima retain ticks, not an additional floating clock.
+- Shared heading-aware footprint projections in core.geometry without creating
+  any evaluator dependency on driving policies or backend objects.
+- Implemented offline collision evidence, signed gap, and positive longitudinal
+  TTC with null applicability, role-group aggregation, and first exact-tie ticks.
+- Added configurable experimental warning thresholds; warnings do not change
+  raw minima or determine falsification. No rewards or composite score.
+- Validation occurs at evaluation boundaries, not record constructors. Reject
+  malformed time/termination/nonfinite-state data instead of classifying it safe.
+- Scenario script prints metrics; raw JSON log export remains unchanged. Full
+  log/metrics artifact persistence belongs to the next application step.
+- Verified: 201 tests pass, including synthetic null/heading/closing/minimum and
+  collision cases, real benign/ego/non-target collisions, backend-free imports,
+  and scenario-script output. Ruff, build, and isolated wheel evaluation pass.
+- Unsafe lateral intrusion has no positive longitudinal TTC; backend flags still
+  correctly identify its ego collision. No collision-free run is a safety proof.
+
+## 4b. Application and user entry point — next
+
+- Add thin application workflows, explicit artifact storage, and a packaged CLI.
+- Bundle logs/metrics with resolved settings and complete the headless MVP.
 
 ## 5. Generation and falsification
 
@@ -138,4 +156,4 @@ Use separate `feat/` branches and small commits. Review shared contracts togethe
 Run checks with uv; keep runtime dependencies minimal and fully FOSS. Update this
 plan with verified completion, not merely the existence of files.
 
-> Recap: Contracts, backend stepping, controlled simulation, and native developer visualization are implemented. Continue with evaluation/CLI, search, and finally completed-run web replay.
+> Recap: Contracts, controlled simulation, native visualization, and independent metrics are implemented. Continue with application/CLI, search, and completed-run web replay.

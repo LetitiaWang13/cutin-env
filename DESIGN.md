@@ -1,7 +1,8 @@
 # Cut-in MVP Design
 
 Status: steps 1-3 are implemented: core contracts, highway-env translation/adapter,
-a controlled runner, and native visualization via CutInEnv(HighwayEnv). Explicit
+a controlled runner, native visualization via CutInEnv(HighwayEnv), and an
+independent longitudinal-v1 evaluator. Application/search/web remain planned. Explicit
 fixed actions retain diagnostic mode. Evaluation/application/web contracts remain
 proposals pending their integration steps; see PLAN.md for verified scope.
 Confirmed: target only ego-involving collisions, and use completed-run replay
@@ -239,8 +240,11 @@ persisted contract has `schema_version`; v1 has no v0 compatibility requirement.
   Events and richer maneuver reports are deferred until control implementation
   demonstrates their need; no event framework is required for the foundation.
   The runner will record collision evidence and actual maneuver behavior.
-- `Metrics`: collision information, pair-specific minimum gap/TTC with times,
-  and assessment validity. It references the evaluated run and evaluator version.
+- `Metrics`: collision flags, first collision/ego-collision ticks and flagged
+  roles, role-pair minimum gap/TTC with ticks, physics frequency, assessment
+  status, warning thresholds/flags, schema and evaluator versions.
+- `PairMetrics`: minima over all ego/other-role combinations, not persistent
+  vehicle IDs. Null values/ticks mean unavailable; exact ties retain first ticks.
 - `RunResult`: application-level bundle of log and metrics; not the simulator's
   return type and not a replacement for `ScenarioConfig`.
 - `SearchResult`: best config/metrics (nullable), attempt/completion/error counts,
@@ -261,7 +265,7 @@ Signatures below express contracts, not a requirement to introduce base classes:
 ```python
 # Public module-level operations
 simulate(scenario: ScenarioConfig, simulator: SimulatorConfig) -> SimulationLog
-evaluate(log: SimulationLog, config: EvaluationConfig) -> Metrics
+evaluate(log: SimulationLog, config: EvaluationConfig | None = None) -> Metrics
 sample(base: ScenarioConfig, space: SearchSpace, rng: Random) -> ScenarioConfig
 
 # Application composition
@@ -344,7 +348,22 @@ Compute safety metrics only from normalized samples/events, not Gym rewards:
    vehicle and compute positive gap / positive closing speed using x-projected
    velocity. Non-closing, overlapping, or laterally disjoint cases yield `null`.
 
-Use heading-aware rectangle projections for conservative footprint bounds.
+Implemented by evaluation.safety with no backend/controller dependency.
+core.geometry shares heading-aware rectangle projections for conservative bounds.
+EvaluationConfig defaults to gap_warning_m=2 and ttc_warning_s=1.5; these
+experimental strictly-below warning thresholds never change raw metric values
+or the collision objective. Outputs retain the resolved thresholds.
+
+AssessmentStatus is complete for a horizon or target-collision termination,
+non_target_collision for a collision without ego, and incomplete for road exit,
+error, cancellation, or missing ego observations. Complete does not mean safe. Partial observations remain
+available with incomplete status. Input-boundary validation requires finite
+states, consecutive physics ticks from zero, resolved integer physics_hz, and
+consistent horizon/first-collision termination; malformed logs raise ValueError.
+No fixed vehicle count/unique-role invariant is imposed. Pair minima aggregate
+all ego/other-role instances without inventing vehicle identities. Backend flags
+identify first-collision participants, not exact collision counterpart pairs.
+
 Minima aggregate only applicable samples. TTC is a constant-velocity local
 approximation, not a prediction of future lateral motion; it can miss a pending
 cut-in. Sampled metrics can miss between-step extremes. Document these limits.
@@ -400,6 +419,7 @@ src/cutin/
     action.py               # ControlAction, AppliedAction
     log.py                  # Small SimulationLog and termination records
     metrics.py              # Shared Metrics contract, not metric algorithms
+    geometry.py             # Shared heading-aware footprint projections
   simulation/
     __init__.py             # Public simulate() entry point
     config.py               # SimulatorConfig
