@@ -22,7 +22,57 @@ with TemporaryDirectory() as directory:
             page.on("pageerror", lambda error: errors.append(str(error)))
             page.goto(f"http://127.0.0.1:{server.server_port}/")
             expect(page.locator("#status")).to_contain_text("Ready.")
+            assert page.locator("#scenario-form input[type=range]").count() == 12
+            positions = [
+                page.get_by_label(f"{role} x (m)", exact=True).bounding_box()
+                for role in ("Ego", "Front", "Cut-in")
+            ]
+            assert positions[0]["x"] < positions[1]["x"] < positions[2]["x"]
+            assert len({box["y"] for box in positions}) == 1
+            slider = page.get_by_label("Ego speed (m/s) slider", exact=True)
+            number = page.get_by_label("Ego speed (m/s)", exact=True)
+            slider.fill("26.4")
+            expect(number).to_have_value("26.4")
+            slider.press("ArrowRight")
+            expect(number).to_have_value("26.5")
+            number.fill("26.425")
+            expect(number).to_have_value("26.425")
+            expect(slider).to_have_value("26.4")
+            front = page.get_by_label("Front x (m)", exact=True)
+            front.fill("1234.125")
+            expect(front).to_have_value("1234.125")
+            expect(page.get_by_label("Front x (m) slider", exact=True)).to_have_value(
+                "200"
+            )
+            expect(page.locator("#offsets")).to_contain_text("+1184.13 m")
+            expect(page.locator(".front .precision-hint").first).to_be_visible()
+            expect(page.locator(".ego .precision-hint").nth(1)).to_be_visible()
+            speeds = [
+                page.get_by_label(f"{role} speed (m/s)", exact=True).bounding_box()
+                for role in ("Ego", "Front", "Cut-in")
+            ]
+            assert len({box["y"] for box in speeds}) == 1
+            assert not page.locator(".advanced").evaluate("el => el.open")
+            page.locator(".advanced summary").click()
+            expect(page.get_by_label("Physics Hz", exact=True)).to_have_value("30")
+            expect(page.get_by_label("Controller Hz", exact=True)).to_have_value("10")
+            page.locator(".advanced summary").click()
+            # Number fields remain authoritative even when the quick slider
+            # cannot represent the typed precision/range.
+            page.get_by_role("button", name="Run and save").click()
+            expect(page.locator("#status")).to_contain_text("Loaded")
+            identifier = page.locator("#status").inner_text().split()[1].rstrip(".")
+            saved = page.request.get(
+                f"http://127.0.0.1:{server.server_port}/api/runs/{identifier}"
+            ).json()
+            assert saved["log"]["scenario"]["initial"]["ego"]["speed_mps"] == 26.425
+            assert saved["log"]["scenario"]["initial"]["front"]["x_m"] == 1234.125
             page.get_by_role("button", name="Unsafe regression").click()
+            expect(front).to_have_value("110")
+            expect(page.locator(".front .precision-hint").first).to_be_hidden()
+            expect(page.get_by_label("Front x (m) slider", exact=True)).to_have_value(
+                "110"
+            )
             page.get_by_role("button", name="Run and save").click()
             expect(page.locator("#status")).to_contain_text("Loaded")
             assert "ego collision: true" in page.locator("#assessment").inner_text()
@@ -61,7 +111,16 @@ with TemporaryDirectory() as directory:
             assert page.evaluate(lane_pixels) == initial, "seek must restore phase"
             page.reload()
             expect(page.locator("#status")).to_contain_text("Ready.")
-            assert page.locator("#saved option").count() == 2
+            assert page.locator("#saved option").count() == 3
+            page.set_viewport_size({"width": 390, "height": 844})
+            assert page.evaluate(
+                "() => document.documentElement.scrollWidth <= innerWidth"
+            )
+            mobile = [
+                page.get_by_label(f"{role} x (m)", exact=True).bounding_box()
+                for role in ("Ego", "Front", "Cut-in")
+            ]
+            assert len({box["y"] for box in mobile}) == 1
             page.get_by_role("button", name="Load saved run").click()
             expect(page.locator("#status")).to_contain_text("Loaded")
             assert not errors, errors

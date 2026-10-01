@@ -8,13 +8,32 @@
 <body>
 <header><h1>Cut-in experiments</h1><p>Run headlessly, then replay recorded samples. No browser physics or safety guarantee.</p></header>
 <main>
-<section>
-  <h2>Scenario</h2>
+<section class="input-panel">
+  <h2>Next scenario</h2>
   <div class="toolbar"><button id="baseline" type="button">Baseline</button><button id="unsafe" type="button">Unsafe regression</button></div>
-  <form id="scenario-form"><div id="fields"></div><button id="run" type="submit">Run and save</button></form>
-  <p>Lane assignments: ego/front → lane 1, cut-in → lane 0. x is initial world position, not merge-start offset.</p>
+  <form id="scenario-form">
+    <fieldset><legend>Experiment</legend><div id="experiment-fields" class="field-grid"></div></fieldset>
+    <fieldset><legend>Initial vehicles</legend>
+      <p class="hint">Compare columns. Positions are world x at tick 0, not merge-start offsets.</p>
+      <div class="vehicle-grid">
+        <div class="vehicle-card ego"><h3>Ego <small>lane 1</small></h3><div id="ego-fields"></div></div>
+        <div class="vehicle-card front"><h3>Front <small>lane 1</small></h3><div id="front-fields"></div></div>
+        <div class="vehicle-card cut-in"><h3>Cut-in <small>lane 0</small></h3><div id="cut-in-fields"></div></div>
+      </div>
+      <output id="offsets" class="offsets" aria-live="polite"></output>
+    </fieldset>
+    <fieldset><legend>Cut-in maneuver</legend><div id="cut-in-maneuver-fields" class="field-grid"></div>
+      <p class="hint">Start and reference duration are independent. Actual completion depends on tracking; the merge may extend beyond the horizon.</p>
+    </fieldset>
+    <details class="advanced"><summary>Advanced · numerical rates and warning thresholds</summary>
+      <fieldset><legend>Numerical rates</legend><div id="numerical-fields" class="field-grid"></div><p class="hint">Controller Hz must divide physics Hz; the horizon must span whole physics ticks.</p></fieldset>
+      <fieldset><legend>Evaluation warnings</legend><div id="evaluation-fields" class="field-grid"></div><p class="hint">Warnings do not change simulation or collision-first search ranking.</p></fieldset>
+    </details>
+    <p class="hint">Sliders are quick-adjust controls. Number boxes retain precise values, including values outside a slider's convenience range.</p>
+    <button id="run" type="submit">Run and save</button>
+  </form>
 </section>
-<section>
+<section class="replay-panel">
   <h2>Completed run</h2>
   <div class="toolbar"><select id="saved" aria-label="Saved runs"></select><button id="load" type="button">Load saved run</button><button id="refresh" type="button">Refresh</button></div>
   <p id="status" role="status">Loading defaults…</p>

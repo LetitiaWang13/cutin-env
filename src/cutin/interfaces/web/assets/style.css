@@ -1,16 +1,43 @@
 :root { color-scheme: dark; font-family: system-ui, sans-serif; background: #151b24; color: #e5ebf2; }
-body { margin: 0 auto; max-width: 1500px; padding: 24px; }
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0 auto; max-width: 1720px; padding: 24px; }
 header p, section > p { color: #b1c0ce; }
-main { display: grid; grid-template-columns: 330px minmax(0, 1fr); gap: 24px; }
+main { display: grid; grid-template-columns: minmax(480px, 0.9fr) minmax(0, 1.4fr); gap: 24px; align-items: start; }
 section { background: #202a37; padding: 20px; border-radius: 10px; min-width: 0; }
 h1, h2 { margin-top: 0; }
-.field { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 8px 0; }
-input[type=number] { width: 95px; }
-button, input, select { background: #101923; border: 1px solid #61788f; border-radius: 5px; color: inherit; padding: 7px; }
+fieldset { border: 1px solid #43556a; border-radius: 8px; padding: 12px; margin: 16px 0; min-width: 0; }
+legend { font-weight: 600; color: #cedbeb; padding: 0 6px; }
+.field-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.vehicle-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.vehicle-card { border-top: 3px solid; min-width: 0; }
+.vehicle-card h3 { margin: 10px 0 12px; font-size: 15px; }
+.vehicle-card small { display: block; color: #a5b4c4; font-size: 11px; font-weight: normal; margin-top: 3px; }
+@supports (grid-template-rows: subgrid) {
+  .vehicle-card { display: grid; grid-row: span 3; grid-template-rows: subgrid; }
+  .vehicle-card > div { display: contents; }
+}
+.ego { border-color: #50b4ff; } .front { border-color: #64dc82; } .cut-in { border-color: #ff9632; }
+.field { min-width: 0; margin: 0 0 12px; }
+.field label { display: block; font-size: 13px; color: #c3d0dd; margin-bottom: 6px; }
+input[type=number] { width: 100%; min-width: 0; font-variant-numeric: tabular-nums; }
+input[type=range] { width: 100%; accent-color: #66baff; padding: 4px 0; cursor: pointer; }
+.front input[type=range] { accent-color: #64dc82; }
+.cut-in input[type=range], #cut-in-maneuver-fields input[type=range] { accent-color: #ff9632; }
+.precision-hint { display: block; color: #e2bc79; font-size: 11px; line-height: 1.35; margin-top: 3px; }
+.hint { color: #a9b9c9; font-size: 12px; line-height: 1.5; margin: 8px 0 12px; }
+.offsets { display: block; color: #c5dfef; font-size: 12px; padding-top: 10px; border-top: 1px solid #43556a; }
+.advanced { border: 1px solid #43556a; border-radius: 8px; padding: 12px; }
+summary { cursor: pointer; } .advanced summary { font-size: 13px; }
+button, input, select { background: #101923; border: 1px solid #61788f; border-radius: 5px; color: inherit; padding: 8px; }
 button { cursor: pointer; } button:disabled { opacity: .5; cursor: default; }
+button:hover:not(:disabled) { border-color: #66baff; } input:focus-visible, button:focus-visible, select:focus-visible { outline: 2px solid #66baff; outline-offset: 2px; }
 .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 12px; }
-#run { width: 100%; margin-top: 14px; } #seek { flex: 1; min-width: 100px; }
+#run { width: 100%; margin-top: 6px; background: #244d72; font-weight: 600; }
+#seek { flex: 1; min-width: 100px; width: auto; }
 #saved { max-width: 100%; } canvas { width: 100%; background: #182b22; border-radius: 6px; }
 table { width: 100%; border-collapse: collapse; } td, th { text-align: left; padding: 8px; border-bottom: 1px solid #415263; }
-pre { overflow: auto; max-height: 360px; font-size: 12px; } #status { overflow-wrap: anywhere; }
-@media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+pre { overflow: auto; max-height: 360px; font-size: 12px; } #status, #assessment { overflow-wrap: anywhere; }
+@media (min-width: 1101px) { .replay-panel { position: sticky; top: 16px; } }
+@media (max-width: 1100px) { main { grid-template-columns: 1fr; } }
+@media (max-width: 520px) { body { padding: 12px; } section { padding: 12px; } .vehicle-grid { gap: 6px; } .vehicle-card h3 { font-size: 13px; } .field label { font-size: 11px; } fieldset { padding: 8px; } td, th { padding: 5px; font-size: 12px; } }

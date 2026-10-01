@@ -8,6 +8,10 @@ export function laneDashOffset(cameraX, scale, startX) {
   const period = LANE_DASH[0] + LANE_DASH[1];
   return ((cameraX * scale + startX) % period + period) % period;
 }
+export function sliderHint(value, sliderValue, low, high, step) {
+  if (!Number.isFinite(value) || value === sliderValue) return '';
+  return `Exact number retained; slider ${low}–${high}, step ${step}.`;
+}
 export function quantity(value, unit) {
   return value === null ? 'n/a' : `${value.toFixed(3)} ${unit}`;
 }
@@ -40,13 +44,14 @@ async function start() {
     ['scenario.initial.cut_in.x_m', 'Cut-in x (m)', 0, null, 'any'],
     ['scenario.initial.cut_in.speed_mps', 'Cut-in speed (m/s)', 0, 40, 'any'],
     ['scenario.cut_in.start_time_s', 'Merge start (s)', 0, null, 'any'],
-    ['scenario.cut_in.target_speed_mps', 'Cut-in target (m/s)', 0, 40, 'any'],
     ['scenario.cut_in.lane_change_duration_s', 'Reference duration (s)', 0.01, null, 'any'],
+    ['scenario.cut_in.target_speed_mps', 'Cut-in target (m/s)', 0, 40, 'any'],
     ['simulator.physics_hz', 'Physics Hz', 1, 120, 1],
     ['simulator.controller_hz', 'Controller Hz', 1, 120, 1],
     ['evaluation.gap_warning_m', 'Gap warning (m)', 0, null, 'any'],
     ['evaluation.ttc_warning_s', 'TTC warning (s)', 0, null, 'any'],
   ];
+  const controls = new Map();
   let defaults, input, record = null, hz = 30, index = 0, playing = false, last = null, time = 0;
   const get = (object, path) => path.split('.').reduce((value, key) => value[key], object);
   function set(object, path, value) {
@@ -68,7 +73,11 @@ async function start() {
       input.scenario.cut_in.start_time_s = 0;
       input.scenario.cut_in.lane_change_duration_s = 1;
     }
-    fields.forEach(([path]) => document.querySelector(`[data-path="${path}"]`).value = get(input, path));
+    fields.forEach(([path]) => {
+      controls.get(path).number.value = get(input, path);
+      controls.get(path).sync();
+    });
+    updateOffsets();
   }
   function pause() { playing = false; last = null; $('play').textContent = 'Play'; }
   function draw() {
@@ -159,11 +168,51 @@ async function start() {
     requestAnimationFrame(animate);
   }
   requestAnimationFrame(animate);
-  fields.forEach(([path, text, min, max, step]) => {
-    const label = document.createElement('label'); label.className = 'field'; label.textContent = text;
-    const element = document.createElement('input'); element.type = 'number'; element.required = true; element.min = min; element.step = step; element.dataset.path = path;
-    if (max !== null) element.max = max;
-    label.append(element); $('fields').append(label);
+  function updateOffsets() {
+    const value = role => controls.get(`scenario.initial.${role}.x_m`).number.valueAsNumber;
+    const offset = role => {
+      const delta = value(role) - value('ego');
+      return Number.isFinite(delta) ? `${delta >= 0 ? '+' : ''}${delta.toFixed(2)} m` : 'n/a';
+    };
+    $('offsets').textContent = `Initial center offsets · front − ego: ${offset('front')} · cut-in − ego: ${offset('cut_in')}`;
+  }
+  fields.forEach(([path, text, min, max, step], index) => {
+    const field = document.createElement('div'); field.className = 'field';
+    const label = document.createElement('label'); label.textContent = text; label.htmlFor = `parameter-${index}`;
+    const number = document.createElement('input'); number.type = 'number'; number.id = label.htmlFor;
+    number.required = true; number.min = min; number.step = step; number.dataset.path = path;
+    if (max !== null) number.max = max;
+    field.append(label, number);
+    let group, quick;
+    if (path.includes('.initial.')) {
+      const role = path.split('.')[2];
+      group = `${role.replace('_', '-')}-fields`;
+      quick = path.endsWith('.x_m') ? [2.5, 200, 0.1] : [0, 40, 0.1];
+    } else if (path.startsWith('scenario.cut_in.')) {
+      group = 'cut-in-maneuver-fields';
+      quick = path.endsWith('target_speed_mps') ? [0, 40, 0.1] : path.endsWith('start_time_s') ? [0, 10, 0.1] : [0.1, 10, 0.1];
+    } else if (path.startsWith('simulator.')) group = 'numerical-fields';
+    else if (path.startsWith('evaluation.')) { group = 'evaluation-fields'; quick = [0, 10, 0.1]; }
+    else { group = 'experiment-fields'; if (path.endsWith('duration_s')) quick = [0.1, 60, 0.1]; }
+    let sync = () => {};
+    if (quick) {
+      const [low, high, increment] = quick;
+      const slider = document.createElement('input'); slider.type = 'range';
+      slider.min = low; slider.max = high; slider.step = increment;
+      slider.dataset.sliderPath = path; slider.setAttribute('aria-label', `${text} slider`);
+      const hint = document.createElement('small'); hint.className = 'precision-hint'; hint.hidden = true;
+      sync = () => {
+        const value = number.valueAsNumber;
+        if (Number.isFinite(value)) slider.value = value;
+        hint.textContent = sliderHint(value, Number(slider.value), low, high, increment);
+        hint.hidden = !hint.textContent;
+      };
+      slider.addEventListener('input', () => { number.value = slider.value; sync(); updateOffsets(); });
+      field.append(slider, hint);
+    }
+    number.addEventListener('input', () => { sync(); updateOffsets(); });
+    controls.set(path, {number, sync});
+    $(group).append(field);
   });
   try { defaults = await request('/api/defaults'); preset(); await refresh(); message('Ready. Run a scenario or load a saved run/search winner.'); }
   catch (error) { message(error.message); $('run').disabled = true; }
