@@ -34,8 +34,15 @@ uv run cutin web --port 8000 --runs-directory runs
 
 Open **http://127.0.0.1:8000/** in a modern desktop browser.
 
-1. Choose Baseline or Unsafe regression, or edit initial positions/speeds,
-   merge timing/target, seed, horizon, numerical rates, and warning thresholds.
+1. Choose Baseline or Unsafe regression, or edit grouped inputs. Ego/front/cut-in
+   position and speed columns line up for comparison; read-only initial center
+   offsets show their relation to ego. Merge start/reference duration sit together,
+   while numerical rates and warning thresholds are under Advanced settings.
+   Common parameters have linked sliders and number boxes. Sliders support
+   keyboard micro-adjustment; exact typed numbers remain authoritative even when
+   outside a quick-adjust range or between slider steps (with an explicit hint).
+   Presets reset both controls. Model/API limits still apply; there is no automatic
+   position correction or requirement that a merge finish before the horizon.
 2. Click **Run and save**. The existing headless application workflow computes
    the complete run before returning; metrics appear beside the replay.
 3. Use Play/Pause, the tick slider, and playback speed to inspect recorded

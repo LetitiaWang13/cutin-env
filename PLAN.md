@@ -218,8 +218,24 @@ Inserted before metrics to let developers visually inspect actual driving.
 - Verified: 319 tests pass; Node checks phase direction/wrapping/clipping, and
   actual Chromium lane-pixel assertions verify leftward movement and seek reset.
   Ruff/build pass; full browser form/metrics/reload smoke remains green.
-- Form sliders, logical grouping, and paired/multi-column inputs remain the next
-  UI refinement, intentionally separate from this motion fix.
+- Form controls were intentionally left separate from this motion fix; see the
+  completed input-layout refinement below.
+
+## Post-MVP Web input layout — complete
+
+- Grouped experiment, initial vehicles, and cut-in maneuver. Vehicle position and
+  speed controls align in three role-colored columns; timing controls are paired.
+- Added linked quick-adjust sliders for 12 common continuous fields, retaining
+  numeric precision and values beyond convenience ranges with explicit hints.
+  Scenario seed and numerical rates stay numeric; advanced settings collapse.
+- Added read-only initial center offsets, responsive layout, keyboard controls,
+  and precise accessible labels. No implicit scenario corrections or new model
+  constraints; typed numeric values remain the submitted source of truth.
+- Verified: 320 tests pass, Node precision/range hint checks, and actual Chromium
+  slider/arrow/numeric/preset synchronization, exact backend payload preservation,
+  aligned columns even with hints, advanced controls, and narrow-screen overflow.
+  Existing simulation/metrics/replay and world-motion smoke remain green.
+  Ruff/build pass. This is a presentation change, not a search-policy change.
 
 ## Working practice
 
