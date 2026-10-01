@@ -94,8 +94,16 @@ def main(argv: list[str] | None = None) -> None:
     )
     search.add_argument("--gap-warning-m", type=float, default=2.0)
     search.add_argument("--ttc-warning-s", type=float, default=1.5)
+    web = commands.add_parser("web", help="Local form and completed-log replay")
+    web.add_argument("--port", type=int, default=8000)
+    web.add_argument("--runs-directory", type=Path, default=Path("runs"))
     args = parser.parse_args(argv)
     try:
+        if args.command == "web":
+            from cutin.interfaces.web.server import serve
+
+            serve(args.runs_directory, args.port)
+            return
         if args.output and (args.output.exists() or args.output.is_symlink()):
             raise FileExistsError(f"output already exists: {args.output}")
         scenario = load_scenario(args.scenario)

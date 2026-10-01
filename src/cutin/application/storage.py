@@ -31,6 +31,14 @@ def _load_object(path: Path) -> dict:
     return data
 
 
+def load_run_documents(directory: Path) -> dict:
+    """Read saved JSON for replay without stepping or re-evaluating the run."""
+    return {
+        "log": _load_object(directory / "log.json"),
+        "metrics": _load_object(directory / "metrics.json"),
+    }
+
+
 def save_run(result: RunResult, directory: Path) -> Path:
     """Save five views of one result; refuse any existing file or directory.
 

@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cut-in MVP</title><link rel="stylesheet" href="/style.css">
+  <script type="module" src="/app.js"></script>
+</head>
+<body>
+<header><h1>Cut-in experiments</h1><p>Run headlessly, then replay recorded samples. No browser physics or safety guarantee.</p></header>
+<main>
+<section>
+  <h2>Scenario</h2>
+  <div class="toolbar"><button id="baseline" type="button">Baseline</button><button id="unsafe" type="button">Unsafe regression</button></div>
+  <form id="scenario-form"><div id="fields"></div><button id="run" type="submit">Run and save</button></form>
+  <p>Lane assignments: ego/front → lane 1, cut-in → lane 0. x is initial world position, not merge-start offset.</p>
+</section>
+<section>
+  <h2>Completed run</h2>
+  <div class="toolbar"><select id="saved" aria-label="Saved runs"></select><button id="load" type="button">Load saved run</button><button id="refresh" type="button">Refresh</button></div>
+  <p id="status" role="status">Loading defaults…</p>
+  <canvas id="road" width="1000" height="260" aria-label="Recorded vehicle trajectory"></canvas>
+  <div class="toolbar"><button id="play" type="button" disabled>Play</button><label>Speed <select id="speed"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option><option value="4">4×</option></select></label><input id="seek" type="range" min="0" max="0" value="0" aria-label="Replay tick" disabled><output id="clock">No samples</output></div>
+  <p>Blue: ego · green: front · orange: cut-in · red: collision flag. Pause/seek affects replay only.</p>
+  <h3>Metrics</h3><p id="assessment">No run loaded</p>
+  <table><thead><tr><th>Pair</th><th>Min gap</th><th>Gap tick</th><th>Positive TTC</th><th>TTC tick</th></tr></thead><tbody id="pairs"></tbody></table>
+  <details><summary>Recorded metrics and provenance</summary><pre id="metrics"></pre></details>
+</section>
+</main>
+</body>
+</html>
