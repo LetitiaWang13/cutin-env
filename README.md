@@ -4,6 +4,14 @@ An incremental cut-in scenario generator/falsification project. See DESIGN.md
 for architecture and PLAN.md for delivery order. See HANDOVER.md for developer
 handoff, invariants, known limitations, and recommended next work.
 
+## License
+
+This project is licensed under the [MIT License](LICENSE), copyright
+2026 Cut-in contributors. Use, modification, and redistribution (including
+commercial use) are permitted with the copyright and permission notices retained.
+The software is provided without warranty. Third-party dependencies retain their
+own licenses; this license does not relicense them.
+
 ## Current scope
 
 The runner executes configured car-following, lane keeping, and cut-in policies

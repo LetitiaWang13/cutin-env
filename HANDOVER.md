@@ -15,7 +15,10 @@ has been merged. `AGENTS.md` was intentionally left untracked/unmodified.
 
 Read README.md for all runnable commands, DESIGN.md for decisions, and PLAN.md
 for verified history. Code/comments/docs should remain English; use uv and FOSS
-libraries without telemetry, with small feature branches and commits.
+libraries without telemetry, with small feature branches and commits. The project
+uses the MIT License (LICENSE), attributed to Cut-in contributors. Retain its
+notices in distributions; dependencies keep their own licenses. Package metadata
+uses the SPDX MIT expression and includes the license in wheel/source archives.
 
 ## Component ownership
 
