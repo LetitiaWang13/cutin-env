@@ -2,9 +2,10 @@
 
 Status: steps 1-3 are implemented: core contracts, highway-env translation/adapter,
 a controlled runner, native visualization via CutInEnv(HighwayEnv), and an
-independent longitudinal-v1 evaluator. Application/search/web remain planned. Explicit
-fixed actions retain diagnostic mode. Evaluation/application/web contracts remain
-proposals pending their integration steps; see PLAN.md for verified scope.
+independent longitudinal-v1 evaluator. Application workflows, artifact storage,
+and the packaged CLI are implemented. Explicit fixed actions retain diagnostic
+mode. Search/web contracts remain proposals pending their integration steps;
+see PLAN.md for verified scope.
 Confirmed: target only ego-involving collisions, and use completed-run replay
 for the first web version. Keep PREPARE on the roadmap, but defer it until after
 the timed-merge MVP and initial search baseline.
@@ -495,14 +496,25 @@ selects and binds components. Interfaces contain no control, search, or metric
 algorithms. Controllers are simulation-internal for now, not a separate plugin
 system. Add import-boundary checks alongside packaging tests when implementing.
 
-A run directory initially needs only `scenario.json`, `simulator.json`,
-`evaluation.json`, `log.json`, and `metrics.json`. The log includes resolved
-configs so it can be evaluated on its own; separate files are convenient views
-of those same values, not independently editable sources of truth. Output
-locations belong to the caller; never silently overwrite an existing run.
+A run directory contains `scenario.json`, `simulator.json`, `evaluation.json`,
+`log.json`, and `metrics.json`. SimulationLog includes the scenario and resolved
+simulator metadata, so it can be independently evaluated. Evaluation thresholds
+are explicit in evaluation.json and metrics.json, not inserted into the log.
+Separate config files are convenient views of the same run inputs. Library
+RunResult bundles log, metrics, and requested simulator/evaluation settings.
 
-CLI proposal: `uv run cutin run examples/baseline.toml --output runs/baseline`.
-Simulator/evaluator settings can initially use explicit recorded defaults.
+Implemented CLI: `uv run cutin run examples/baseline.toml --output runs/baseline`.
+`--render` retains native visualization; warning thresholds are optional flags.
+Scenario input accepts validated TOML or JSON (including saved scenario.json).
+Simulator settings currently use recorded defaults. Output is optional. Any
+existing directory/file/symlink is refused, both before running in the CLI and
+at exclusive directory creation in storage. Serialization precedes creation;
+write errors remove the newly created directory. No crash-atomic database or
+implicit storage is promised. Simulation errors retain partial logs/metrics,
+are saved when requested, and exit 1; invalid requests/storage errors exit 2.
+Collisions are experimental outcomes and do not imply a failing process exit.
+Legacy scripts/run_scenario.py still exports a single raw JSON log and shares
+workflow, rendering, and terminal-summary code with the packaged interface.
 Library callers do not have to write artifacts. Include a wheel build/install
 smoke check so packaging works outside the repository root.
 

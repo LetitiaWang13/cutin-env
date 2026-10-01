@@ -7,8 +7,9 @@ for architecture and PLAN.md for delivery order.
 
 The runner executes configured car-following, lane keeping, and cut-in policies
 through CutInEnv(HighwayEnv), with optional native visualization. An independent
-evaluator now computes collision, gap, and TTC from logs. A packaged CLI, search,
-and web visualization are not implemented yet. Numerical defaults and warning
+evaluator computes collision, gap, and TTC from logs. Thin application workflows,
+a packaged CLI, and explicit run artifacts are available. Search and web
+visualization are not implemented yet. Numerical defaults and warning
 thresholds are experimental, not safety-calibrated.
 Only highway-env adapter/translation modules import the backend. Core and the
 runner's public imports remain backend-independent.
@@ -23,7 +24,51 @@ uv run ruff format --check .
 uv build
 ```
 
-## Run a configured scenario
+## Run and save an experiment
+
+```sh
+uv sync --locked
+uv run cutin run examples/baseline.toml
+uv run cutin run examples/unsafe.toml --render --output runs/unsafe-001
+uv run cutin run examples/baseline.toml --gap-warning-m 4 --ttc-warning-s 2
+```
+
+Close the terminal scene's window to see metrics in the terminal. `--output`
+creates a **new directory** containing:
+
+```text
+scenario.json    validated scenario
+simulator.json   requested numerical/controller settings
+evaluation.json  warning thresholds
+log.json         sampled state/actions, termination, backend metadata
+metrics.json     assessment, collision evidence, minima/ticks, warning settings
+```
+
+Existing files/directories/symlinks are never overwritten. No output path means
+no artifact writes. In-memory library use stays independent of persistence:
+
+```python
+from pathlib import Path
+from cutin.application import load_scenario, run_scenario, save_run
+
+result = run_scenario(load_scenario(Path("examples/baseline.toml")))
+print(result.metrics)
+save_run(result, Path("runs/baseline-001"))  # Optional; must not already exist.
+```
+
+Saved scenario.json is also validated input for another simulation (not replay):
+
+```sh
+uv run cutin run runs/unsafe-001/scenario.json --output runs/unsafe-002
+```
+
+A collision is an experiment result, not a process failure. Simulation errors
+print diagnostics, save partial log/metrics when requested, and exit 1. Invalid
+requests and I/O failures exit 2. Write failures clean up a newly created run
+directory; process crashes are not guaranteed atomic. Typed log/metrics reload,
+replay, and artifact indexes are deferred until a consumer needs them.
+
+## Legacy scenario script
 
 From this repository directory:
 
@@ -44,6 +89,9 @@ visualization below. `--output` still exports the raw log, not a log/metrics bun
 
 `simulate(scenario, SimulatorConfig())` executes policies by default. Supplying
 explicit `actions=...` selects fixed-action diagnostic mode instead.
+
+The legacy script shares the application workflow and native viewer with the
+CLI; its `--output` still means a **single raw log file**, not a run directory.
 
 ## Evaluate safety metrics
 
@@ -191,6 +239,12 @@ values for future API/artifact output. Core performs no file I/O. Three-vehicle
 restrictions live only in scenario validation, not in generic snapshots/logs.
 The simulation component is now split into:
 
+- `application/workflows.py`: compose simulate/evaluate into an in-memory
+  RunResult with requested settings; callable injection keeps tests backend-free.
+- `application/storage.py`: explicit validated scenario loading and fresh-directory
+  artifact saving, outside physics/evaluation. No implicit reads or writes.
+- `interfaces/cli.py`: request parsing, native viewer lifecycle, and terminal
+  summaries; no metric formulas or physics loop.
 - `core/metrics.py`: immutable result contracts and assessment status, without
   metric algorithms. `core/geometry.py` shares footprint conventions between
   evaluation, controllers, and road-bound checks.

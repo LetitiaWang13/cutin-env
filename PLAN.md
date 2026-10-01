@@ -132,12 +132,27 @@ Inserted before metrics to let developers visually inspect actual driving.
 - Unsafe lateral intrusion has no positive longitudinal TTC; backend flags still
   correctly identify its ego collision. No collision-free run is a safety proof.
 
-## 4b. Application and user entry point — next
+## 4b. Application and user entry point — complete
 
-- Add thin application workflows, explicit artifact storage, and a packaged CLI.
-- Bundle logs/metrics with resolved settings and complete the headless MVP.
+- RunResult bundles log, metrics, and requested simulator/evaluation settings.
+  A small workflow composes simulate/evaluate and permits fake-backed tests.
+- Explicit loading validates TOML/JSON scenarios. Optional save_run writes five
+  JSON views to a new directory, refuses existing destinations, encodes before
+  creation, and removes the new directory after write errors.
+- Packaged `cutin run` accepts optional native rendering, warning thresholds,
+  and artifact output. Metrics remain in the terminal/metrics.json, not viewer UI.
+- Operational simulation errors save partial results when requested and exit 1;
+  bad requests/storage errors exit 2. Collisions are outcomes, not process errors.
+- Legacy script retains raw-log export but delegates composition, native viewer,
+  and terminal summaries to the shared workflow/interface functions.
+- Verified: 225 tests pass, including fake composition, backend-free application
+  imports, artifact consistency/cleanup/no-overwrite, saved JSON input, outside-
+  repository CLI execution, and native terminal-close persistence. Ruff, build,
+  and isolated installed-wheel CLI/artifact smoke pass.
+- No crash-atomic database, artifact index, or typed log reload is added. Completed
+  log replay remains the web step; current saved-scenario input re-simulates.
 
-## 5. Generation and falsification
+## 5. Generation and falsification — next
 
 - Add seeded uniform sampling, then bounded sequential random search.
 - Test search with injected fake simulator/evaluator callables before integration.
@@ -156,4 +171,4 @@ Use separate `feat/` branches and small commits. Review shared contracts togethe
 Run checks with uv; keep runtime dependencies minimal and fully FOSS. Update this
 plan with verified completion, not merely the existence of files.
 
-> Recap: Contracts, controlled simulation, native visualization, and independent metrics are implemented. Continue with application/CLI, search, and completed-run web replay.
+> Recap: The headless/visual single-run MVP now includes independent metrics, application workflows, artifact persistence, and a packaged CLI. Continue with generation/search and completed-run web replay.
