@@ -1,7 +1,8 @@
 # Cut-in
 
 An incremental cut-in scenario generator/falsification project. See DESIGN.md
-for architecture and PLAN.md for delivery order.
+for architecture and PLAN.md for delivery order. See HANDOVER.md for developer
+handoff, invariants, known limitations, and recommended next work.
 
 ## Current scope
 
@@ -25,6 +26,43 @@ uv run ruff format --check .
 uv build
 ```
 
+## Command quick reference
+
+Run from `cutin/` (not the parent repository). Install/sync first with
+`uv sync --locked`. Outputs below must be fresh paths; change `-001` when rerunning.
+
+| Task | Command |
+| --- | --- |
+| Command help | `uv run cutin --help` |
+| Local Web | `uv run cutin web --port 8000 --runs-directory runs` |
+| Headless baseline + Metrics | `uv run cutin run examples/baseline.toml` |
+| Native baseline window | `uv run cutin run examples/baseline.toml --render` |
+| Native collision example + saved artifacts | `uv run cutin run examples/unsafe.toml --render --output runs/unsafe-001` |
+| Change warning thresholds | `uv run cutin run examples/baseline.toml --gap-warning-m 4 --ttc-warning-s 2` |
+| Re-simulate a saved Web scenario natively | `uv run cutin run runs/<run-id>/scenario.json --render` |
+| Sample one concrete scenario | `uv run python scripts/sample_scenario.py --seed 17 --output runs/candidate-001.json` |
+| Run the sampled scenario | `uv run cutin run runs/candidate-001.json --render --output runs/candidate-001` |
+| Bounded random search | `uv run cutin search examples/baseline.toml --space examples/search_space.toml --budget 5 --max-attempts 10 --seed 17 --output runs/search-001` |
+| Inspect search winner natively | `uv run cutin run runs/search-001/best/scenario.json --render` |
+| Legacy single-log export | `uv run python scripts/run_scenario.py examples/unsafe.toml --output runs/unsafe-log-001.json` |
+| Fixed-action physics diagnostic (not configured policies) | `uv run python scripts/probe_highway_env.py --steps 30 --output runs/probe-001.json` |
+| Tests | `uv run --locked pytest -q` |
+| Lint / format check | `uv run --locked ruff check .` / `uv run --locked ruff format --check .` |
+| Build wheel + source archive | `uv build` |
+
+Web URL: **http://127.0.0.1:8000/**. Stop the server with Ctrl+C.
+For **original log replay**, select a saved run/search ID in Web and click Load
+saved run, then Play; this never runs physics again. Native `--render` above
+**re-simulates** the saved scenario using CLI simulator/evaluator defaults; it
+does not restore customized settings from simulator.json/evaluation.json.
+See HANDOVER.md for explicit library-based setting restoration.
+
+Native Metrics print in the terminal after closing the final window. Web Metrics
+appear alongside replay; a successful Run and save already loads both panels,
+so no manual refresh is needed. Artifact metrics.json is the result;
+evaluation.json contains the warning configuration. See the sections below
+for input formats, API/library usage, outputs, and optional browser smoke.
+
 ## Local Web MVP
 
 ```sh
@@ -43,8 +81,15 @@ Open **http://127.0.0.1:8000/** in a modern desktop browser.
    outside a quick-adjust range or between slider steps (with an explicit hint).
    Presets reset both controls. Model/API limits still apply; there is no automatic
    position correction or requirement that a merge finish before the horizon.
+   Invalid initial positions are marked red immediately with the affected pair,
+   actual center separation, vehicle length, and required clearance. Web-only
+   same-lane clearance is 0.1 m beyond vehicle length; touching/overlapping lateral
+   footprints are checked, but adjacent lanes do not incorrectly prohibit equal x.
+   Invalid positions disable Run; CLI/search retain core admissibility unchanged.
 2. Click **Run and save**. The existing headless application workflow computes
-   the complete run before returning; metrics appear beside the replay.
+   the complete run before returning. A left-side confirmation explains that
+   replay/Metrics are already loaded; click Play, or Go to loaded replay. No
+   refresh is required. Failures also show an explicit left-side error banner.
 3. Use Play/Pause, the tick slider, and playback speed to inspect recorded
    snapshots. These change only the browser view, never physics or controls.
    The camera follows ego; lane dashes are anchored to world x and move backward
@@ -54,7 +99,9 @@ Open **http://127.0.0.1:8000/** in a modern desktop browser.
    runs/search-001/best is exposed as search-001 when serving the runs directory.
    Loading/refreshing does not re-simulate or re-evaluate anything.
 
-Web runs save under runs/<random-id>/ in the existing five-file format. Metrics
+New Web runs save under runs/frontend-YYYYMMDD-HHMMSSZ-<8-hex>/ in the existing
+five-file format: frontend identifies the source, time is UTC (Z), and the random
+suffix avoids same-second name collisions. Existing hash-only IDs still load. Metrics
 show assessment/termination, ego collision, warnings, pair minima and their ticks;
 raw metrics, simulator provenance, and diagnostics are expandable. An error or
 empty partial log remains incomplete, not safe. The Canvas draws stored poses

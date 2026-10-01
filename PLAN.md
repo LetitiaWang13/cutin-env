@@ -237,6 +237,20 @@ Inserted before metrics to let developers visually inspect actual driving.
   Existing simulation/metrics/replay and world-motion smoke remain green.
   Ruff/build pass. This is a presentation change, not a search-policy change.
 
+## Post-MVP Web feedback and handover — complete
+
+- Added immediate red, pair-specific position/road-bound feedback and blocking
+  validation, with Web-only 0.1 m initial clearance mirrored at the API boundary.
+  Preserve adjacent-lane same-x and existing core/search admissibility.
+- Added left-side busy/success/failure banners, explicit already-loaded/Play
+  instructions, and navigation to replay. No manual refresh is required.
+- Frontend run IDs now carry source, UTC timestamp and random suffix, retaining
+  compatibility with old IDs and root-confined routes.
+- Added HANDOVER.md for ownership/invariants/limits/reproducibility and next work;
+  README includes a consolidated command and replay-versus-re-simulation guide.
+- Verified: 327 tests pass, Ruff/build and Chromium validation/ready-flow/naming,
+  grouped controls, exact payloads, road motion, seek/reload and mobile checks.
+
 ## Working practice
 
 Use separate `feat/` branches and small commits. Review shared contracts together.
