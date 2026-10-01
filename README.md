@@ -56,7 +56,7 @@ Run from `cutin/` (not the parent repository). Install/sync first with
 | Fixed-action physics diagnostic (not configured policies) | `uv run python scripts/probe_highway_env.py --steps 30 --output runs/probe-001.json` |
 | Tests | `uv run --locked pytest -q` |
 | Lint / format check | `uv run --locked ruff check .` / `uv run --locked ruff format --check .` |
-| Build wheel + source archive | `uv build` |
+| Build wheel + source archive | `uv build` (see [Packaging and installation](#packaging-and-installation)) |
 
 Web URL: **http://127.0.0.1:8000/**. Stop the server with Ctrl+C.
 For **original log replay**, select a saved run/search ID in Web and click Load
@@ -70,6 +70,72 @@ appear alongside replay; a successful Run and save already loads both panels,
 so no manual refresh is needed. Artifact metrics.json is the result;
 evaluation.json contains the warning configuration. See the sections below
 for input formats, API/library usage, outputs, and optional browser smoke.
+
+## Packaging and installation
+
+Packaging is already configured in pyproject.toml using Hatchling. No setup.py
+is needed. From `cutin/`, synchronize and check the project, then build:
+
+```sh
+uv sync --locked
+uv run --locked pytest -q
+uv run --locked ruff check .
+uv run --locked ruff format --check .
+uv build
+```
+
+For the current version, the outputs are:
+
+```text
+dist/
+├── cutin-0.1.0-py3-none-any.whl
+└── cutin-0.1.0.tar.gz
+```
+
+The wheel is ready to install; the source archive requires a build during
+installation. Both include the MIT license. The wheel includes the Python
+package and self-hosted Web HTML/CSS/JavaScript assets. It is not a standalone
+executable and does not bundle Python or third-party dependencies.
+
+### Install a distributed wheel
+
+Share the wheel with teammates; a PyPI upload is not required. In a separate
+working directory outside the source repository, with uv installed:
+
+```sh
+uv venv --python 3.12
+uv pip install /path/to/cutin-0.1.0-py3-none-any.whl
+
+# Use the installed package without discovering/syncing a source project.
+uv run --no-project cutin --help
+uv run --no-project cutin web --port 8000 --runs-directory runs
+```
+
+Replace the wheel path with the actual file location. uv installs runtime
+dependencies automatically (network access may be required). Open
+**http://127.0.0.1:8000/** for the built-in scenario form, Metrics, and replay.
+Stop with Ctrl+C. Python >=3.11 is required; 3.12 above is a tested choice.
+Native `--render` additionally needs a usable desktop/display environment.
+
+Repository examples and scripts are not installed as wheel CLI commands.
+To run a supplied TOML/JSON scenario, copy it separately, then use:
+
+```sh
+uv run --no-project cutin run /path/to/baseline.toml
+```
+
+Use the source checkout for `scripts/` tools, tests, and editable development:
+`uv sync --locked` installs the local project in editable mode. Installing a
+wheel resolves dependencies from the declared version ranges, not uv.lock;
+for experiments requiring the locked development environment, use the source
+checkout and `uv sync --locked` instead. Cross-platform bitwise reproducibility
+is not guaranteed.
+
+### Build a new release
+
+Update `[project].version` in pyproject.toml, refresh the lockfile with `uv lock`,
+then run checks and `uv build` again. Distribute the matching new-version wheel;
+old release files can remain in dist/, so check the filename before sharing.
 
 ## Local Web MVP
 
