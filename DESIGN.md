@@ -5,7 +5,7 @@ a controlled runner, native visualization via CutInEnv(HighwayEnv), and an
 independent longitudinal-v1 evaluator. Application workflows, artifact storage,
 and the packaged CLI are implemented. Explicit fixed actions retain diagnostic
 mode. Seeded proposals and bounded sequential falsification are implemented;
-web contracts remain proposals pending their integration steps;
+the loopback Web form and completed-log replay are implemented;
 see PLAN.md for verified scope.
 Confirmed: target only ego-involving collisions, and use completed-run replay
 for the first web version. Keep PREPARE on the roadmap, but defer it until after
@@ -602,22 +602,36 @@ can still use simulate/evaluate separately. Example boundaries:
 - Falsification decides which candidate wins; application does not rank it.
 - Interfaces translate CLI/HTTP input and output; application is transport-free.
 
-## 8. Future web/API boundary
+## 8. Local web/API boundary
 
 Confirmed: start with completed-run replay, not live simulation sessions.
 Browser playback pause/seek changes only the view; backend live step/control is
 deferred. The first web version belongs under `interfaces/web/`:
 
 
-- `POST /runs`: validated scenario plus simulator/evaluator settings; invokes
-  `run_scenario` and returns run id, metrics, and log/artifact references.
-- `GET /runs/{id}` and `/runs/{id}/log`: retrieve result and normalized samples.
-- Later `POST /searches`: base scenario, ranges, budget, and seeds.
+Implemented with the standard-library development HTTP server and self-hosted
+HTML/CSS/JavaScript, without additional runtime dependencies or telemetry:
 
-These are proposed payload semantics, not endpoints to implement now. Long
-searches will need a job boundary, but job queues/authentication/multi-user
-storage are deferred. Even a local API must validate inputs and restrict origin,
-binding, and request size before accepting mutations.
+- `GET /api/defaults`: concrete scenario and simulator/evaluator defaults.
+- `POST /api/runs`: validated scenario plus optional simulator/evaluation settings;
+  invokes application.run_scenario, saves five artifacts under a new UUID, and
+  returns id and metrics only after completion. Backend error logs remain recorded
+  incomplete outcomes; exceptions/invalid requests return explicit HTTP errors.
+- `GET /api/runs`: saved-run/search-winner IDs under the configured root.
+- `GET /api/runs/{id}`: raw persisted log/metrics for replay, without physics or
+  re-evaluation. Existing search best/ artifacts map to their parent search ID.
+
+`cutin web --runs-directory runs --port 8000` binds only 127.0.0.1. Restrict Host,
+Origin, mutation header, JSON body size (64 KiB), Web duration/rate (60 s/120 Hz),
+and artifact size (16 MiB each). Reject concurrent mutations with 409; no job
+queue or live session is created. IDs are single safe path components; resolved
+artifact paths cannot escape the root. Static assets use CSP and no external CDN.
+The artifact root is trusted local storage, not an untrusted multi-user service.
+This is not a production HTTP server. Long searches still use CLI; a future
+Web search/job/authentication boundary is deferred, not simulated with a new
+framework. Browser pause/seek/speed select recorded ticks only. Complete means
+an assessed experiment, never a safety proof. Typed log reload remains deferred;
+application.storage explicitly reads plain persisted documents for this consumer.
 
 An HTML/Canvas frontend can replay the normalized trajectory and show metrics;
 it must not implement vehicle physics. Rendering cadence cannot affect simulation

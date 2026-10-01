@@ -189,11 +189,25 @@ Inserted before metrics to let developers visually inspect actual driving.
   wins. Continue after target discovery to refine within budget. This is empirical
   falsification, not a safety guarantee or a wall-clock-bounded optimizer.
 
-## 6. Web replay — next
+## 6. Local Web form and completed-log replay — complete
 
-- Add a form/API wrapper around existing application workflows.
-- Replay completed normalized logs and show metrics in Canvas.
-- Do not implement browser physics or backend live stepping in this phase.
+- Packaged `cutin web` serves self-hosted HTML/CSS/JavaScript using only the
+  standard library, binding to loopback with Host/Origin/JSON/resource limits.
+- Form submits concrete scenarios/settings to the existing application workflow;
+  runs are serialized, persisted in the same five-file format, and then replayed.
+- Metrics table shows assessment, collision/warnings, minima and ticks, with raw
+  provenance/diagnostics. No missing value becomes zero or a safety conclusion.
+- Canvas uses recorded poses only. Playback pause, seek, and speed do not mutate
+  physics. Saved CLI runs and search winners load without a new simulation.
+- Added explicit plain-document loading, root-confined safe IDs, packaged assets,
+  and optional developer Chromium smoke without adding runtime dependencies.
+- Verified: 318 tests pass, including HTTP/security/limits/busy/error/persistence,
+  real unsafe request, saved run/search loading, and Node replay clock/null checks.
+  Ruff/build, isolated installed-wheel Web/assets smoke, and actual Chromium
+  baseline/unsafe form, metrics, play/seek, and reload checks pass.
+- No remote/public serving, Web search jobs, live backend control, authentication,
+  database, or crash-atomic storage. The local single-run/search/replay MVP is now
+  complete; scenario admissibility and search quality remain future improvements.
 
 ## Working practice
 
@@ -201,4 +215,4 @@ Use separate `feat/` branches and small commits. Review shared contracts togethe
 Run checks with uv; keep runtime dependencies minimal and fully FOSS. Update this
 plan with verified completion, not merely the existence of files.
 
-> Recap: The headless/visual single-run MVP now includes independent metrics, application workflows, artifact persistence, and a packaged CLI. Seeded proposals and bounded falsification are implemented; continue with completed-run web replay.
+> Recap: The headless/visual single-run MVP now includes independent metrics, application workflows, artifact persistence, and a packaged CLI. Seeded sampling, bounded falsification, and local Web form/metrics/replay complete the MVP. Improve scenario admissibility and search quality next, without treating empirical results as safety guarantees.

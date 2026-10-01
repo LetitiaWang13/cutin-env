@@ -9,8 +9,8 @@ The runner executes configured car-following, lane keeping, and cut-in policies
 through CutInEnv(HighwayEnv), with optional native visualization. An independent
 evaluator computes collision, gap, and TTC from logs. Thin application workflows,
 a packaged CLI, explicit run artifacts, and seeded scenario sampling are available.
-Bounded sequential random falsification is implemented. Web visualization remains
-planned; no collision-free run or search is a proof of safety. Numerical defaults and warning
+Bounded sequential random falsification and a local Web form/metrics/replay UI
+are implemented. No collision-free run or search is a proof of safety. Numerical defaults and warning
 thresholds are experimental, not safety-calibrated.
 Only highway-env adapter/translation modules import the backend. Core and the
 runner's public imports remain backend-independent.
@@ -24,6 +24,57 @@ uv run ruff check .
 uv run ruff format --check .
 uv build
 ```
+
+## Local Web MVP
+
+```sh
+uv sync --locked
+uv run cutin web --port 8000 --runs-directory runs
+```
+
+Open **http://127.0.0.1:8000/** in a modern desktop browser.
+
+1. Choose Baseline or Unsafe regression, or edit initial positions/speeds,
+   merge timing/target, seed, horizon, numerical rates, and warning thresholds.
+2. Click **Run and save**. The existing headless application workflow computes
+   the complete run before returning; metrics appear beside the replay.
+3. Use Play/Pause, the tick slider, and playback speed to inspect recorded
+   snapshots. These change only the browser view, never physics or controls.
+4. Load saved run directories or search winners from the dropdown. For example,
+   runs/search-001/best is exposed as search-001 when serving the runs directory.
+   Loading/refreshing does not re-simulate or re-evaluate anything.
+
+Web runs save under runs/<random-id>/ in the existing five-file format. Metrics
+show assessment/termination, ego collision, warnings, pair minima and their ticks;
+raw metrics, simulator provenance, and diagnostics are expandable. An error or
+empty partial log remains incomplete, not safe. The Canvas draws stored poses
+and collision flags; it is not the native Gym viewer or a browser simulator.
+CLI native rendering remains available separately.
+
+The standard-library server is **local development only**, not a production
+HTTP service. It binds only 127.0.0.1, checks Host/Origin and mutation headers,
+accepts JSON requests up to 64 KiB, bounds Web runs to 60 s/120 physics Hz, and
+limits each replay artifact to 16 MiB. One simulation runs at a time; another
+mutation gets 409 rather than being queued. Artifact IDs cannot select arbitrary
+paths or escape the configured root. No telemetry/CDN/framework dependencies.
+
+There is no live backend pause/step, Web search job endpoint, authentication,
+remote binding, session manager, or typed log re-import. Search still runs via
+CLI; its winner can be replayed here. Stop the server with Ctrl+C. Persistence
+retains the existing non-crash-atomic limitations. Treat the artifact root as
+trusted local data, not a multi-user upload store.
+
+Optional developer browser smoke (Playwright is not a runtime dependency):
+
+```sh
+uv run --with playwright playwright install chromium
+uv run --with playwright python scripts/smoke_web_browser.py
+```
+
+Linux may also need Chromium OS libraries. PLAYWRIGHT_CHROMIUM_EXECUTABLE can
+select an existing browser; CUTIN_SMOKE_SCREENSHOT optionally saves a screenshot.
+HTTP/security/real-run tests run in pytest; JavaScript selection/null tests use
+Node when available. Chromium form/metrics/playback/persistence were also verified.
 
 ## Run and save an experiment
 
@@ -66,8 +117,8 @@ uv run cutin run runs/unsafe-001/scenario.json --output runs/unsafe-002
 A collision is an experiment result, not a process failure. Simulation errors
 print diagnostics, save partial log/metrics when requested, and exit 1. Invalid
 requests and I/O failures exit 2. Write failures clean up a newly created run
-directory; process crashes are not guaranteed atomic. Typed log/metrics reload,
-replay, and artifact indexes are deferred until a consumer needs them.
+directory; process crashes are not guaranteed atomic. Typed log/metrics reload and artifact indexes remain deferred; the Web consumer
+reads raw saved JSON explicitly for replay.
 
 ## Legacy scenario script
 
@@ -330,6 +381,10 @@ values for future API/artifact output. Core performs no file I/O. Three-vehicle
 restrictions live only in scenario validation, not in generic snapshots/logs.
 The simulation component is now split into:
 
+- `interfaces/web/server.py`: local HTTP boundary, resource/origin/root limits,
+  serialized headless runs, and explicit persisted-document reads.
+- `interfaces/web/assets/`: self-hosted HTML/CSS/JavaScript form and recorded-pose
+  Canvas replay, without physics or metric formulas.
 - `falsification/config.py`: eligible-run budget, attempt cap, and proposal seed.
 - `falsification/objective.py`: target eligibility and lexicographic ranking.
 - `falsification/search.py`: bounded loop, diagnostics/counters, and best full run;
