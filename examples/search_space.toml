@@ -1,0 +1,11 @@
+# Proposal ranges only; the base scenario and search RNG seed are separate.
+schema_version = 1
+
+[ranges]
+"initial.ego.speed_mps" = [22.0, 28.0]
+"initial.front.x_m" = [100.0, 125.0]
+"initial.cut_in.x_m" = [45.0, 80.0]
+"initial.cut_in.speed_mps" = [20.0, 30.0]
+"cut_in.start_time_s" = [0.0, 3.0]
+"cut_in.target_speed_mps" = [20.0, 30.0]
+"cut_in.lane_change_duration_s" = [0.8, 3.0]
