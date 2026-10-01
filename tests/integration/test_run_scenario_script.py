@@ -14,6 +14,9 @@ def test_script_saves_controlled_log_and_refuses_overwrite(tmp_path: Path) -> No
         command, cwd=root, check=True, capture_output=True, text=True
     )
     assert "Termination: horizon" in result.stdout
+    assert "Assessment: complete" in result.stdout
+    assert "Collision / ego collision: False False" in result.stdout
+    assert "min_ttc=n/a" in result.stdout
     data = json.loads(output.read_text())
     assert data["simulator_settings"]["control_mode"] == "scenario-policy"
     assert data["simulator_settings"]["policy_version"] == "baseline-v1"

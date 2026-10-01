@@ -1,4 +1,4 @@
-"""Run the configured driving policies headlessly; metrics/visualization follow."""
+"""Run configured driving policies, optionally render, and evaluate safety metrics."""
 
 import argparse
 import json
@@ -7,6 +7,7 @@ from dataclasses import asdict
 from pathlib import Path
 
 from cutin.core import ScenarioConfig, TerminationReason
+from cutin.evaluation import evaluate
 from cutin.simulation import SimulatorConfig, simulate
 
 
@@ -54,6 +55,13 @@ def main() -> None:
             )
     if log.diagnostic:
         print("Diagnostic:", log.diagnostic)
+    metrics = evaluate(log)
+    print("Assessment:", metrics.assessment_status)
+    print("Collision / ego collision:", metrics.collision, metrics.ego_collision)
+    for pair in metrics.pairs:
+        gap = "n/a" if pair.min_gap_m is None else f"{pair.min_gap_m:.3f} m"
+        ttc = "n/a" if pair.min_ttc_s is None else f"{pair.min_ttc_s:.3f} s"
+        print(f"  ego/{pair.other_role}: min_gap={gap}, min_ttc={ttc}")
     if args.output:
         args.output.parent.mkdir(parents=True, exist_ok=True)
         with args.output.open("x") as output:
