@@ -14,6 +14,9 @@ dependencies = [
   "numpy>=2,<3",
 ]
 
+[project.scripts]
+cutin = "cutin.interfaces.cli:main"
+
 [dependency-groups]
 dev = ["pytest>=8,<10", "ruff>=0.11,<1"]
 
