@@ -209,6 +209,18 @@ Inserted before metrics to let developers visually inspect actual driving.
   database, or crash-atomic storage. The local single-run/search/replay MVP is now
   complete; scenario admissibility and search quality remain future improvements.
 
+## Post-MVP Web replay refinement — complete
+
+- Fixed ego-following camera lane markings: dash phase now derives from recorded
+  world x, including clipped road starts, instead of remaining screen-anchored.
+- No timer-driven road animation or backend/metric changes. Pause/seek/speed use
+  the same stored-snapshot clock; stationary ego cannot create phantom movement.
+- Verified: 319 tests pass; Node checks phase direction/wrapping/clipping, and
+  actual Chromium lane-pixel assertions verify leftward movement and seek reset.
+  Ruff/build pass; full browser form/metrics/reload smoke remains green.
+- Form sliders, logical grouping, and paired/multi-column inputs remain the next
+  UI refinement, intentionally separate from this motion fix.
+
 ## Working practice
 
 Use separate `feat/` branches and small commits. Review shared contracts together.

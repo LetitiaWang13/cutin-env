@@ -40,6 +40,9 @@ Open **http://127.0.0.1:8000/** in a modern desktop browser.
    the complete run before returning; metrics appear beside the replay.
 3. Use Play/Pause, the tick slider, and playback speed to inspect recorded
    snapshots. These change only the browser view, never physics or controls.
+   The camera follows ego; lane dashes are anchored to world x and move backward
+   with its recorded displacement. Pausing freezes them and seeking restores
+   the exact corresponding pattern phase, without a separate animation clock.
 4. Load saved run directories or search winners from the dropdown. For example,
    runs/search-001/best is exposed as search-001 when serving the runs directory.
    Loading/refreshing does not re-simulate or re-evaluate anything.
