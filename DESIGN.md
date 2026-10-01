@@ -4,7 +4,8 @@ Status: steps 1-3 are implemented: core contracts, highway-env translation/adapt
 a controlled runner, native visualization via CutInEnv(HighwayEnv), and an
 independent longitudinal-v1 evaluator. Application workflows, artifact storage,
 and the packaged CLI are implemented. Explicit fixed actions retain diagnostic
-mode. Search/web contracts remain proposals pending their integration steps;
+mode. Seeded single-draw sampling is implemented; the search loop and web
+contracts remain proposals pending their integration steps;
 see PLAN.md for verified scope.
 Confirmed: target only ego-involving collisions, and use completed-run replay
 for the first web version. Keep PREPARE on the roadmap, but defer it until after
@@ -169,9 +170,12 @@ lateral position within a lane.
   values are secretly overridden. Unsupported scenario features fail clearly.
 - `EvaluationConfig`: **how it is judged** — metric version and optional safety
   thresholds. Changing it permits re-evaluation without changing the scenario.
-- `SearchSpace`: a base `ScenarioConfig` plus explicit ranges over an allowlist
-  of numeric paths. Initially: vehicle x/speeds and the three cut-in parameters.
-  Road topology, baseline policy, seeds, and backend settings are not searched.
+- `SearchSpace`: immutable parameter-range records over an explicit nine-path
+  allowlist: initial ego/front/cut-in x/speeds and the three cut-in parameters.
+  The valid base ScenarioConfig is supplied separately to sample(base, space,
+  rng), not duplicated inside the space. Road topology, baseline policy, seeds,
+  and backend settings are not searched. Inputs use `ranges = {path: [low, high]}`
+  with schema_version=1. Bounds and span must be finite and ordered.
 - `SearchConfig`: candidate budget, attempt cap, and separate search RNG seed.
   Objective v1 is collision-first ranking as defined below.
 
@@ -385,6 +389,13 @@ safety. Even a completed collision-free run is not a proof of safety.
 - Freeze base scenario, simulator, evaluator, and baseline policy for a search.
 - Sample independently and uniformly over declared ranges with a local seeded
   RNG and stable parameter order. Scenario seed stays fixed to isolate changes.
+- sample() validates the base/space before touching RNG state, draws once in
+  alphabetical path order, skips RNG draws for fixed bounds, and validates the
+  concrete scenario through ScenarioConfig.from_dict. RejectedSample reports
+  a domain-invalid draw; it never retries or clamps inside the sampler. Bad base
+  or space inputs raise ordinary ValueError, not a candidate rejection. Ranges
+  may propose invalid physical values; cross-field/domain constraints are owned
+  by scenario validation, and backend capabilities remain simulator-owned.
 - Validate every sample; rejected samples count toward a finite attempt cap.
 - Budget counts completed eligible runs; errors, road exits, and non-target
   collisions count toward the attempt cap, not as unsafe discoveries. Stop at

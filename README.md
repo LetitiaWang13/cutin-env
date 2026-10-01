@@ -8,8 +8,8 @@ for architecture and PLAN.md for delivery order.
 The runner executes configured car-following, lane keeping, and cut-in policies
 through CutInEnv(HighwayEnv), with optional native visualization. An independent
 evaluator computes collision, gap, and TTC from logs. Thin application workflows,
-a packaged CLI, and explicit run artifacts are available. Search and web
-visualization are not implemented yet. Numerical defaults and warning
+a packaged CLI, explicit run artifacts, and seeded scenario sampling are available.
+The bounded search loop and web visualization are not implemented yet. Numerical defaults and warning
 thresholds are experimental, not safety-calibrated.
 Only highway-env adapter/translation modules import the backend. Core and the
 runner's public imports remain backend-independent.
@@ -92,6 +92,54 @@ explicit `actions=...` selects fixed-action diagnostic mode instead.
 
 The legacy script shares the application workflow and native viewer with the
 CLI; its `--output` still means a **single raw log file**, not a run directory.
+
+## Sample one concrete scenario
+
+```sh
+uv run python scripts/sample_scenario.py --seed 17 --output runs/candidate-001.json
+uv run cutin run runs/candidate-001.json --render --output runs/candidate-001
+```
+
+The first command reads examples/baseline.toml and examples/search_space.toml.
+Use `--space path.toml` or a positional base TOML/JSON to change inputs. Without
+`--output`, it prints concrete scenario JSON to stdout. Existing output files
+are refused. This diagnostic samples once, without physics or automatic retries;
+a rejected candidate exits 1, invalid configuration/I/O exits 2.
+
+The range file uses explicit paths:
+
+```toml
+schema_version = 1
+[ranges]
+"initial.cut_in.x_m" = [45.0, 80.0]
+"cut_in.start_time_s" = [0.0, 3.0]
+"cut_in.lane_change_duration_s" = [0.8, 3.0]
+```
+
+Library callers own the local RNG and its advancing stream:
+
+```python
+from random import Random
+from cutin.generation import ParameterRange, RejectedSample, SearchSpace, sample
+
+space = SearchSpace((ParameterRange("initial.cut_in.x_m", 45, 80),))
+rng = Random(17)
+try:
+    candidate = sample(base, space, rng)  # base is a validated ScenarioConfig.
+except RejectedSample as error:
+    print("Count this rejected attempt:", error)  # No retry inside sample().
+```
+
+Only initial x/speeds for ego/front/cut-in and the three cut-in parameters are
+searchable. x is the world position at tick 0, not an offset at merge start.
+Road, lane assignments, baseline policy, duration, and scenario seed stay fixed.
+Proposal seed 17 is separate from the unchanged scenario seed (42 in examples).
+Path ordering does not change proposals; fixed bounds consume no random draw.
+Ranges have finite ordered bounds/span, but are not pre-certified feasible:
+invalid geometry/speeds/times are rejected after the draw, never clamped. A valid
+scenario may still exceed backend-specific capabilities, which the simulator
+reports. A merge beyond the horizon is permitted, not rejected by generation.
+The same generated ScenarioConfig feeds existing simulation/evaluation/storage.
 
 ## Evaluate safety metrics
 
@@ -239,6 +287,9 @@ values for future API/artifact output. Core performs no file I/O. Three-vehicle
 restrictions live only in scenario validation, not in generic snapshots/logs.
 The simulation component is now split into:
 
+- `generation/space.py`: explicit immutable numeric ranges and a nine-path allowlist.
+- `generation/sampling.py`: one local-RNG uniform proposal, candidate validation,
+  and explicit rejection; no backend, file I/O, or internal retry loop.
 - `application/workflows.py`: compose simulate/evaluate into an in-memory
   RunResult with requested settings; callable injection keeps tests backend-free.
 - `application/storage.py`: explicit validated scenario loading and fresh-directory

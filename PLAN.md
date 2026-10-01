@@ -152,9 +152,26 @@ Inserted before metrics to let developers visually inspect actual driving.
 - No crash-atomic database, artifact index, or typed log reload is added. Completed
   log replay remains the web step; current saved-scenario input re-simulates.
 
-## 5. Generation and falsification — next
+## 5a. Seeded scenario proposals — complete
 
-- Add seeded uniform sampling, then bounded sequential random search.
+- Added SearchSpace/ParameterRange with explicit allowlisted initial x/speed and
+  cut-in ranges, immutable tuples, schema version, and format-independent parsing.
+- sample(base, space, rng) draws once in stable alphabetical path order, leaves
+  base/scenario seed and global RNG untouched, and skips draws for fixed bounds.
+- Validate configurations before RNG use; validate candidates through the core
+  scenario boundary. RejectedSample is explicit and never triggers hidden retry.
+- Proposal syntax and scenario feasibility stay distinct. No clamping, backend
+  dependency, relative-position conversion, or invented completion requirement.
+- Added examples/search_space.toml and scripts/sample_scenario.py to export a
+  concrete JSON scenario that the existing packaged run CLI accepts unchanged.
+- Verified: 274 tests pass, including deterministic streams/order/zero-draw cases,
+  all nine fields, input validation, single-draw rejection, immutable base/global
+  RNG isolation, backend-free imports, and real sampled scenario execution.
+  Ruff, builds, and isolated installed-wheel sampling smoke pass.
+
+## 5b. Bounded falsification — next
+
+- Add bounded sequential random search using the public sampling API.
 - Test search with injected fake simulator/evaluator callables before integration.
 - Save the winning scenario and summary. Non-ego collisions are not successes;
   truncated non-target collision runs are excluded from ranking.
@@ -171,4 +188,4 @@ Use separate `feat/` branches and small commits. Review shared contracts togethe
 Run checks with uv; keep runtime dependencies minimal and fully FOSS. Update this
 plan with verified completion, not merely the existence of files.
 
-> Recap: The headless/visual single-run MVP now includes independent metrics, application workflows, artifact persistence, and a packaged CLI. Continue with generation/search and completed-run web replay.
+> Recap: The headless/visual single-run MVP now includes independent metrics, application workflows, artifact persistence, and a packaged CLI. Seeded proposals are ready; continue with bounded search and completed-run web replay.
