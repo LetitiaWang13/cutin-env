@@ -1,7 +1,7 @@
 """Translate scenario, action, and state contracts at the highway-env boundary."""
 
 from collections.abc import Mapping
-from math import cos, isfinite, sin
+from math import isfinite
 
 import numpy as np
 from highway_env.road.lane import StraightLane
@@ -9,6 +9,7 @@ from highway_env.road.road import Road, RoadNetwork
 from highway_env.vehicle.kinematics import Vehicle
 
 from cutin.core import ControlAction, Role, ScenarioConfig, StateSnapshot, VehicleState
+from cutin.core.geometry import half_extents
 from cutin.core.scenario_config import RoadConfig
 
 
@@ -106,9 +107,7 @@ def collect_snapshot(vehicles: Mapping[Role, Vehicle], tick: int) -> StateSnapsh
 def road_exited(snapshot: StateSnapshot, road: RoadConfig) -> bool:
     """Conservative rotated footprint bounds, not a backend lane-centre test."""
     for state in snapshot.vehicles:
-        c, s = abs(cos(state.heading_rad)), abs(sin(state.heading_rad))
-        half_x = (state.length_m * c + state.width_m * s) / 2
-        half_y = (state.length_m * s + state.width_m * c) / 2
+        half_x, half_y = half_extents(state)
         if (
             state.x_m - half_x < 0
             or state.x_m + half_x > road.length_m

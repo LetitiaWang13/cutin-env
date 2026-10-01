@@ -2,6 +2,7 @@
 
 from cutin.core.action import AppliedAction, ControlAction
 from cutin.core.log import CutInReport, LogEntry, SimulationLog, TerminationReason
+from cutin.core.metrics import AssessmentStatus, Metrics, PairMetrics
 from cutin.core.scenario_config import (
     BaselinePolicy,
     CutInConfig,
@@ -16,6 +17,7 @@ from cutin.core.state import Role, StateSnapshot, VehicleState
 
 __all__ = [
     "AppliedAction",
+    "AssessmentStatus",
     "BaselinePolicy",
     "ControlAction",
     "CutInConfig",
@@ -23,6 +25,8 @@ __all__ = [
     "InitialConditions",
     "InitialVehicle",
     "LogEntry",
+    "Metrics",
+    "PairMetrics",
     "RoadConfig",
     "Role",
     "ScenarioConfig",

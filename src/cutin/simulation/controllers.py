@@ -1,6 +1,6 @@
 """Small baseline policies, independent of backend objects. Defaults uncalibrated."""
 
-from math import asin, atan, atan2, cos, pi, sin, sqrt, tan
+from math import asin, atan, atan2, cos, pi, sqrt, tan
 
 from cutin.core import (
     ControlAction,
@@ -10,6 +10,7 @@ from cutin.core import (
     StateSnapshot,
     VehicleState,
 )
+from cutin.core.geometry import half_extents
 from cutin.core.scenario_config import BaselinePolicy
 from cutin.simulation.config import SimulatorConfig
 
@@ -19,15 +20,6 @@ HEADING_GAIN = 3.0  # 1/s
 SPEED_GAIN = 1.0  # 1/s
 COMPLETION_POSITION_M = 0.2
 COMPLETION_HEADING_RAD = 0.05
-
-
-def half_extents(vehicle: VehicleState) -> tuple[float, float]:
-    """Heading-aware, conservative world-axis rectangle bounds."""
-    c, s = abs(cos(vehicle.heading_rad)), abs(sin(vehicle.heading_rad))
-    return (
-        (vehicle.length_m * c + vehicle.width_m * s) / 2,
-        (vehicle.length_m * s + vehicle.width_m * c) / 2,
-    )
 
 
 def following_acceleration(
