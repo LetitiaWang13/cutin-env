@@ -4,8 +4,8 @@ Status: steps 1-3 are implemented: core contracts, highway-env translation/adapt
 a controlled runner, native visualization via CutInEnv(HighwayEnv), and an
 independent longitudinal-v1 evaluator. Application workflows, artifact storage,
 and the packaged CLI are implemented. Explicit fixed actions retain diagnostic
-mode. Seeded single-draw sampling is implemented; the search loop and web
-contracts remain proposals pending their integration steps;
+mode. Seeded proposals and bounded sequential falsification are implemented;
+web contracts remain proposals pending their integration steps;
 see PLAN.md for verified scope.
 Confirmed: target only ego-involving collisions, and use completed-run replay
 for the first web version. Keep PREPARE on the roadmap, but defer it until after
@@ -275,7 +275,7 @@ sample(base: ScenarioConfig, space: SearchSpace, rng: Random) -> ScenarioConfig
 
 # Application composition
 run_scenario(scenario, simulator_config, evaluation_config) -> RunResult
-search(space, search_config, simulate_fn, evaluate_fn) -> SearchResult
+search(base, space, search_config, simulate_fn, evaluate_fn) -> SearchResult
 ```
 
 For search, bind simulator/evaluator configs to the injected callables so the
@@ -405,6 +405,23 @@ safety. Even a completed collision-free run is not a proof of safety.
   stable ties keep the earlier candidate. No invented composite safety score.
 - Save only the best full run initially; summarize failures/rejections. If no
   eligible candidate exists, return `best_config: null` explicitly.
+- Implemented SearchConfig defaults: budget=20, max_attempts=100, seed=17;
+  bounds are positive integers, seed is nonnegative, and the cap may be below
+  budget. SearchResult holds counters, best log/metrics and one-based attempt,
+  stop reason, last error/rejection, and ego-collision-gap-ttc-v1 objective version.
+- Every attempt belongs to one outcome counter. ego_collisions counts only
+  eligible target violations and is a subset of completed. Exceptions count as
+  errors; explicit simulation error/road-exit logs do not need metric evaluation.
+  Cancellation stops before evaluation, preserving any earlier winner. Interrupts
+  propagate. Target collisions do not early-stop; continue to either bound.
+- Application search_scenarios binds fixed numerical/evaluation settings to the
+  public one-argument callbacks. CLI `cutin search BASE --space SPACE --budget N
+  --max-attempts M --seed S --output DIR` is headless; inspect the best afterward.
+- Search artifacts contain base.json, space.json, simulator.json, evaluation.json,
+  search.json, and optionally best/ with the winning five run files. Summary
+  includes best_config/best_metrics and relative best_run="best", all null when
+  no winner exists. No per-attempt full logs, checkpoint/resume, or wall-time
+  deadline is added. Fresh-directory/no-overwrite/cleanup rules match run storage.
 
 Random search is an empirical falsification baseline. Future optimization can
 replace proposal/ranking logic without altering simulation or evaluation.

@@ -169,14 +169,27 @@ Inserted before metrics to let developers visually inspect actual driving.
   RNG isolation, backend-free imports, and real sampled scenario execution.
   Ruff, builds, and isolated installed-wheel sampling smoke pass.
 
-## 5b. Bounded falsification — next
+## 5b. Bounded falsification — complete
 
-- Add bounded sequential random search using the public sampling API.
-- Test search with injected fake simulator/evaluator callables before integration.
-- Save the winning scenario and summary. Non-ego collisions are not successes;
-  truncated non-target collision runs are excluded from ranking.
+- Added positive budget/attempt cap and separate nonnegative proposal seed.
+  Count only eligible assessments toward budget; every attempt has one outcome.
+- Implemented collision-first/gap/TTC lexicographic ranking with missing values
+  last and stable ties. No composite score, warning-driven objective, or rewards.
+- Backend/evaluator exceptions, errors, road exits, non-target collisions, and
+  incomplete assessments never win. Cancellation stops before evaluation.
+- Keep only the best full log/metrics, retain counts and last diagnostics, and
+  return explicit null winner when there is no eligible assessment.
+- Application binds fixed settings; packaged `cutin search` runs headlessly and
+  optionally saves inputs/summary plus best/ using fresh-directory safeguards.
+- Verified: 299 tests pass, including fake ranking/bounds/rejection/error/cancel
+  cases, consistent artifacts/cleanup, real deterministic target discovery and
+  non-target exclusion, outside-repository CLI, and backend-free imports.
+  Ruff/build and isolated installed-wheel search/artifact smoke pass.
+- Locked seed-17 example: budget five finds two ego collisions; attempt three
+  wins. Continue after target discovery to refine within budget. This is empirical
+  falsification, not a safety guarantee or a wall-clock-bounded optimizer.
 
-## 6. Web replay
+## 6. Web replay — next
 
 - Add a form/API wrapper around existing application workflows.
 - Replay completed normalized logs and show metrics in Canvas.
@@ -188,4 +201,4 @@ Use separate `feat/` branches and small commits. Review shared contracts togethe
 Run checks with uv; keep runtime dependencies minimal and fully FOSS. Update this
 plan with verified completion, not merely the existence of files.
 
-> Recap: The headless/visual single-run MVP now includes independent metrics, application workflows, artifact persistence, and a packaged CLI. Seeded proposals are ready; continue with bounded search and completed-run web replay.
+> Recap: The headless/visual single-run MVP now includes independent metrics, application workflows, artifact persistence, and a packaged CLI. Seeded proposals and bounded falsification are implemented; continue with completed-run web replay.

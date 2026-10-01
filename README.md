@@ -9,7 +9,8 @@ The runner executes configured car-following, lane keeping, and cut-in policies
 through CutInEnv(HighwayEnv), with optional native visualization. An independent
 evaluator computes collision, gap, and TTC from logs. Thin application workflows,
 a packaged CLI, explicit run artifacts, and seeded scenario sampling are available.
-The bounded search loop and web visualization are not implemented yet. Numerical defaults and warning
+Bounded sequential random falsification is implemented. Web visualization remains
+planned; no collision-free run or search is a proof of safety. Numerical defaults and warning
 thresholds are experimental, not safety-calibrated.
 Only highway-env adapter/translation modules import the backend. Core and the
 runner's public imports remain backend-independent.
@@ -92,6 +93,48 @@ explicit `actions=...` selects fixed-action diagnostic mode instead.
 
 The legacy script shares the application workflow and native viewer with the
 CLI; its `--output` still means a **single raw log file**, not a run directory.
+
+## Search for ego-involving collisions
+
+```sh
+uv run cutin search examples/baseline.toml --space examples/search_space.toml \
+  --budget 5 --max-attempts 10 --seed 17 --output runs/search-001
+# Re-simulate the best concrete scenario with the native viewer (not log replay).
+uv run cutin run runs/search-001/best/scenario.json --render
+```
+
+The locked example completes five eligible runs and finds two ego collisions;
+proposal 3 wins. The separate scenario seed stays 42. Search remains headless;
+visualize the winner afterward, not every attempt.
+
+- `--budget` counts eligible completed assessments, not total attempts.
+- `--max-attempts` counts everything: valid runs, rejected candidates, exceptions,
+  backend errors, road exits, non-target collisions, and incomplete assessments.
+  The search stops at either bound; attempt cap may be smaller than the budget.
+- Ranking is lexicographic: ego collision first, then lower minimum ego-pair gap,
+  then lower positive TTC. Missing values sort last and exact ties keep the
+  earlier proposal. Warning thresholds do not affect ranking.
+- Finding a target collision does not stop the loop; the remaining budget can
+  refine the best run. Cancellation stops immediately and preserves an earlier
+  best result. KeyboardInterrupt propagates; no resumable session is promised.
+- Exceptions are counted and the last diagnostic is retained. All attempts have
+  one outcome counter; ego_collisions is a subset of completed, not extra attempts.
+
+Optional output contains base.json, space.json, simulator.json, evaluation.json,
+and **search.json** (bounds/seed, counts, stop reason, best proposal/config/metrics,
+last error/rejection). **best/** contains only the winning run's five artifacts.
+There are no per-candidate full logs. If no eligible candidate exists,
+`best_config`, `best_metrics`, and `best_run` are null, with no best directory.
+Existing output paths are refused. No output means no persistence. A search
+with no winner and operational errors saves its summary then exits 1; reaching
+an attempt cap through rejected/non-target candidates is a valid result, not a
+safe result. Invalid input/storage errors exit 2.
+
+Library callers can use application.search_scenarios/save_search, or inject
+one-argument simulate/evaluate callables into falsification.search. The search
+component owns eligibility, counters, and ranking; application only binds fixed
+simulator/evaluation settings and saves results when explicitly asked. Bounds
+are run-count limits, not a wall-clock timeout.
 
 ## Sample one concrete scenario
 
@@ -287,6 +330,10 @@ values for future API/artifact output. Core performs no file I/O. Three-vehicle
 restrictions live only in scenario validation, not in generic snapshots/logs.
 The simulation component is now split into:
 
+- `falsification/config.py`: eligible-run budget, attempt cap, and proposal seed.
+- `falsification/objective.py`: target eligibility and lexicographic ranking.
+- `falsification/search.py`: bounded loop, diagnostics/counters, and best full run;
+  no backend, application, or file-I/O dependency.
 - `generation/space.py`: explicit immutable numeric ranges and a nine-path allowlist.
 - `generation/sampling.py`: one local-RNG uniform proposal, candidate validation,
   and explicit rejection; no backend, file I/O, or internal retry loop.
