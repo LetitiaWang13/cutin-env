@@ -1,6 +1,25 @@
 """Thin experiment workflows with optional, explicit persistence."""
 
-from cutin.application.storage import load_scenario, save_run
-from cutin.application.workflows import RunResult, run_scenario
+from cutin.application.storage import (
+    load_scenario,
+    load_search_space,
+    save_run,
+    save_search,
+)
+from cutin.application.workflows import (
+    RunResult,
+    SearchRunResult,
+    run_scenario,
+    search_scenarios,
+)
 
-__all__ = ["RunResult", "load_scenario", "run_scenario", "save_run"]
+__all__ = [
+    "RunResult",
+    "SearchRunResult",
+    "load_scenario",
+    "load_search_space",
+    "run_scenario",
+    "search_scenarios",
+    "save_run",
+    "save_search",
+]

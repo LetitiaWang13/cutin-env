@@ -4,10 +4,19 @@ import argparse
 from functools import partial
 from pathlib import Path
 
-from cutin.application import RunResult, load_scenario, run_scenario, save_run
+from cutin.application import (
+    RunResult,
+    load_scenario,
+    load_search_space,
+    run_scenario,
+    save_run,
+    save_search,
+    search_scenarios,
+)
 from cutin.core import ScenarioConfig, TerminationReason
 from cutin.evaluation import EvaluationConfig
 from cutin.evaluation.config import validate_evaluation_config
+from cutin.falsification import SearchConfig
 from cutin.simulation import SimulatorConfig, simulate
 
 
@@ -74,6 +83,17 @@ def main(argv: list[str] | None = None) -> None:
     run.add_argument("--render", action="store_true", help="Native highway-env window")
     run.add_argument("--gap-warning-m", type=float, default=2.0)
     run.add_argument("--ttc-warning-s", type=float, default=1.5)
+    search = commands.add_parser("search", help="Bounded headless random falsification")
+    search.add_argument("scenario", type=Path)
+    search.add_argument("--space", type=Path, required=True)
+    search.add_argument("--budget", type=int, default=20)
+    search.add_argument("--max-attempts", type=int, default=100)
+    search.add_argument("--seed", type=int, default=17, help="Proposal RNG seed")
+    search.add_argument(
+        "--output", type=Path, help="New search directory; never overwrite"
+    )
+    search.add_argument("--gap-warning-m", type=float, default=2.0)
+    search.add_argument("--ttc-warning-s", type=float, default=1.5)
     args = parser.parse_args(argv)
     try:
         if args.output and (args.output.exists() or args.output.is_symlink()):
@@ -83,6 +103,41 @@ def main(argv: list[str] | None = None) -> None:
         evaluation = EvaluationConfig(args.gap_warning_m, args.ttc_warning_s)
         # Reject bad input before opening a viewer.
         validate_evaluation_config(evaluation)
+        if args.command == "search":
+            result = search_scenarios(
+                scenario,
+                load_search_space(args.space),
+                SearchConfig(args.budget, args.max_attempts, args.seed),
+                simulator,
+                evaluation,
+            )
+            summary = result.search
+            print("Search stopped:", summary.stop_reason)
+            print(
+                f"Attempts={summary.attempts}, completed={summary.completed}, "
+                f"rejected={summary.rejected}, errors={summary.errors}"
+            )
+            print(
+                f"Ego collisions={summary.ego_collisions}, "
+                f"non-target collisions={summary.non_target_collisions}, "
+                f"road exits={summary.road_exits}, incomplete={summary.incomplete}, "
+                f"cancelled={summary.cancelled}"
+            )
+            print("Best attempt:", summary.best_attempt)
+            print(
+                "Best ego collision:",
+                summary.best_metrics.ego_collision if summary.best_metrics else None,
+            )
+            if summary.last_error:
+                print("Last error:", summary.last_error)
+            if summary.last_rejection:
+                print("Last rejection:", summary.last_rejection)
+            if args.output:
+                save_search(result, args.output)
+                print("Saved:", args.output)
+            if summary.best_log is None and summary.errors:
+                raise SystemExit(1)
+            return
         result = (
             run_with_viewer(scenario, simulator, evaluation)
             if args.render
