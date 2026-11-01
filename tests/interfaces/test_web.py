@@ -70,7 +70,7 @@ def test_assets_defaults_and_completed_run_reload(web):
     status, content, _ = request(web, "POST", "/api/runs", defaults)
     assert status == 201
     identifier = json.loads(content)["id"]
-    assert re.fullmatch(r"frontend-\d{8}-\d{6}Z-[0-9a-f]{8}", identifier)
+    assert re.fullmatch(r"frontend-\d{8}-\d{6}-[0-9a-f]{8}", identifier)
     saved = web.directory / identifier
     assert (saved / "metrics.json").is_file()
     status, content, _ = request(web, "GET", f"/api/runs/{identifier}")
@@ -239,3 +239,18 @@ data.log.entries[0].snapshot.tick = 1;
 assert.throws(() => validateReplay(data));
 """
     subprocess.run([node, "--input-type=module", "-e", code, str(asset)], check=True)
+
+
+def test_named_runs_use_timestamp_and_name_as_folder_and_default_is_not_saved(web):
+    defaults = json.loads(request(web, "GET", "/api/defaults")[1])
+    status, content, _ = request(web, "POST", "/api/runs", {**defaults, "name": " Input  1 "})
+    identifier = json.loads(content)["id"]
+    assert status == 201 and re.fullmatch(r"\d{8}-\d{6}-Input 1", identifier)
+    assert (web.directory / identifier / "log.json").is_file()
+    assert json.loads(request(web, "GET", "/api/runs")[1])["ids"] == [identifier]
+    assert request(web, "GET", "/api/runs/" + identifier.replace(" ", "%20"))[0] == 200
+    for bad in ("", "x" * 41, 7, "a/b", "..", "bad\x00name", "Default"):
+        assert request(web, "POST", "/api/runs", {**defaults, "name": bad})[0] == 400
+    status, content, _ = request(web, "POST", "/api/runs", {**defaults, "save": False})
+    assert status == 200 and {"log", "metrics"} <= set(json.loads(content))
+    assert [path.name for path in web.directory.iterdir()] == [identifier]

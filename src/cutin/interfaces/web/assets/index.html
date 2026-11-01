@@ -2,51 +2,77 @@
 <html lang="en">
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Cut-in MVP</title><link rel="stylesheet" href="/style.css">
+  <title>Critical Scenario Generator</title><link rel="stylesheet" href="/style.css">
   <script type="module" src="/app.js"></script>
 </head>
 <body>
-<header><h1>Cut-in experiments</h1><p>Run headlessly, then replay recorded samples. No browser physics or safety guarantee.</p></header>
+<header class="masthead">
+  <h1>Critical Scenario Generator</h1>
+  <p>Run a scenario headlessly, then replay the recorded samples. The browser does no physics, and no result is a safety guarantee.</p>
+</header>
 <main>
-<section class="input-panel">
-  <h2>Next scenario</h2>
-  <div class="toolbar"><button id="baseline" type="button">Baseline</button><button id="unsafe" type="button">Unsafe regression</button></div>
-  <form id="scenario-form">
-    <fieldset><legend>Experiment</legend><div id="experiment-fields" class="field-grid"></div></fieldset>
-    <fieldset><legend>Initial vehicles</legend>
-      <p class="hint">Compare columns. Positions are world x at tick 0, not merge-start offsets.</p>
-      <div class="vehicle-grid">
-        <div class="vehicle-card ego"><h3>Ego <small>lane 1</small></h3><div id="ego-fields"></div></div>
-        <div class="vehicle-card front"><h3>Front <small>lane 1</small></h3><div id="front-fields"></div></div>
-        <div class="vehicle-card cut-in"><h3>Cut-in <small>lane 0</small></h3><div id="cut-in-fields"></div></div>
-      </div>
-      <output id="offsets" class="offsets" aria-live="polite"></output>
-      <p class="hint">Same-lane center spacing needs vehicle length + 0.1 m clearance. Adjacent lanes may share x when their footprints do not overlap.</p>
-      <div id="position-errors" class="feedback error" role="alert" hidden><strong>Fix initial positions before running</strong><ul id="position-error-list"></ul></div>
-    </fieldset>
-    <fieldset><legend>Cut-in maneuver</legend><div id="cut-in-maneuver-fields" class="field-grid"></div>
-      <p class="hint">Start and reference duration are independent. Actual completion depends on tracking; the merge may extend beyond the horizon.</p>
-    </fieldset>
-    <details class="advanced"><summary>Advanced · numerical rates and warning thresholds</summary>
-      <fieldset><legend>Numerical rates</legend><div id="numerical-fields" class="field-grid"></div><p class="hint">Controller Hz must divide physics Hz; the horizon must span whole physics ticks.</p></fieldset>
-      <fieldset><legend>Evaluation warnings</legend><div id="evaluation-fields" class="field-grid"></div><p class="hint">Warnings do not change simulation or collision-first search ranking.</p></fieldset>
-    </details>
-    <p class="hint">Sliders are quick-adjust controls. Number boxes retain precise values, including values outside a slider's convenience range.</p>
-    <button id="run" type="submit">Run and save</button>
-    <div id="run-feedback" class="feedback" role="status" hidden></div>
-    <button id="go-replay" type="button" hidden>Go to loaded replay</button>
-  </form>
-</section>
-<section class="replay-panel">
-  <h2>Completed run</h2>
-  <div class="toolbar"><select id="saved" aria-label="Saved runs"></select><button id="load" type="button">Load saved run</button><button id="refresh" type="button">Refresh</button></div>
+<section class="replay-panel" aria-labelledby="replay-title">
+  <div class="panel-head">
+    <h2 id="replay-title">Demo Run</h2>
+    <div class="toolbar loader"><select id="saved" aria-label="Saved runs"></select><button id="load" type="button">Load saved run</button><button id="refresh" type="button">Refresh</button></div>
+  </div>
   <p id="status" role="status">Loading defaults…</p>
-  <canvas id="road" width="1000" height="260" aria-label="Recorded vehicle trajectory"></canvas>
-  <div class="toolbar"><button id="play" type="button" disabled>Play</button><label>Speed <select id="speed"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option><option value="4">4×</option></select></label><input id="seek" type="range" min="0" max="0" value="0" aria-label="Replay tick" disabled><output id="clock">No samples</output></div>
-  <p>Blue: ego · green: front · orange: cut-in · red: collision flag. Pause/seek affects replay only.</p>
-  <h3>Metrics</h3><p id="assessment">No run loaded</p>
-  <table><thead><tr><th>Pair</th><th>Min gap</th><th>Gap tick</th><th>Positive TTC</th><th>TTC tick</th></tr></thead><tbody id="pairs"></tbody></table>
-  <details><summary>Recorded metrics and provenance</summary><pre id="metrics"></pre></details>
+  <div class="stage">
+    <canvas id="road" width="1000" height="260" aria-label="Recorded vehicle trajectory"></canvas>
+    <div class="transport"><button id="play" type="button" disabled>Play</button><label>Speed <select id="speed"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option><option value="4">4×</option></select></label><input id="seek" type="range" min="0" max="0" value="0" aria-label="Replay tick" disabled><output id="clock">No samples</output></div>
+  </div>
+  <div class="replay-meta">
+    <ul class="legend" aria-label="Vehicle colors"><li class="role-ego">Ego</li><li class="role-front">Front</li><li class="role-cut-in">Cut-in</li><li class="role-hit">Collision flag</li></ul>
+    <p class="hint replay-hint">Pause and seek change only the replay, never the recorded physics.</p>
+  </div>
+  <div class="results">
+    <div class="results-summary"><h3>Metrics</h3><p id="assessment">No run loaded</p></div>
+    <div class="results-detail">
+      <table><thead><tr><th>Pair</th><th>Min gap</th><th>Gap tick</th><th>Positive TTC</th><th>TTC tick</th></tr></thead><tbody id="pairs"></tbody></table>
+      <details><summary>Recorded metrics and provenance</summary><pre id="metrics"></pre></details>
+    </div>
+  </div>
+</section>
+<section class="input-panel" aria-labelledby="scenario-title">
+  <div class="panel-head">
+    <h2 id="scenario-title">Next scenario</h2>
+    <div class="toolbar presets" role="group" aria-label="Presets"><button id="baseline" type="button">Baseline</button><button id="unsafe" type="button">Unsafe regression</button></div>
+  </div>
+  <form id="scenario-form">
+    <div class="form-grid">
+      <fieldset class="vehicles-set"><legend>Initial vehicles</legend>
+        <div class="vehicle-grid">
+          <div class="vehicle-card ego"><h3>Ego <small>lane 1</small></h3><div id="ego-fields"></div></div>
+          <div class="vehicle-card front"><h3>Front <small>lane 1</small></h3><div id="front-fields"></div></div>
+          <div class="vehicle-card cut-in"><h3>Cut-in <small>lane 0</small></h3><div id="cut-in-fields"></div></div>
+        </div>
+        <output id="offsets" class="offsets" aria-live="polite"></output>
+        <p class="hint">Positions are world x at tick 0, not offsets at merge start. Same-lane center spacing needs vehicle length + 0.1 m clearance. Adjacent lanes may share x when their footprints do not overlap.</p>
+        <div id="position-errors" class="feedback error" role="alert" hidden><strong>Fix initial positions before running</strong><ul id="position-error-list"></ul></div>
+      </fieldset>
+      <div class="side-sets">
+        <fieldset><legend>Experiment</legend><div id="experiment-fields" class="field-grid"></div></fieldset>
+        <fieldset hidden><legend>Cut-in maneuver</legend><div id="cut-in-maneuver-fields" class="field-grid"></div>
+          <p class="hint">Start and reference duration are independent. Actual completion depends on tracking; the merge may extend beyond the horizon.</p>
+        </fieldset>
+      </div>
+    </div>
+    <details class="advanced"><summary>Advanced: numerical rates and warning thresholds</summary>
+      <div class="adv-grid">
+        <fieldset><legend>Numerical rates</legend><div id="numerical-fields" class="field-grid"></div><p class="hint">Controller Hz must divide physics Hz; the horizon must span whole physics ticks.</p></fieldset>
+        <fieldset><legend>Evaluation warnings</legend><div id="evaluation-fields" class="field-grid"></div><p class="hint">Warnings do not change simulation or collision-first search ranking.</p></fieldset>
+      </div>
+    </details>
+    <div class="form-actions">
+      <p class="hint">Sliders are quick-adjust controls. Number boxes keep precise values, including values outside a slider's range.</p>
+      <label class="run-name">Scenario name <input id="run-name" type="text" maxlength="40" autocomplete="off" spellcheck="false"></label>
+      <button id="run" type="submit">Run and save</button>
+    </div>
+    <div class="form-result">
+      <div id="run-feedback" class="feedback" role="status" hidden></div>
+      <button id="go-replay" type="button" hidden>Go to loaded replay</button>
+    </div>
+  </form>
 </section>
 </main>
 </body>

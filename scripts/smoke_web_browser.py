@@ -1,9 +1,11 @@
 """Optional Chromium smoke; run with uv's --with playwright dependency."""
 
 import os
+import re
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from threading import Thread
+from urllib.parse import quote
 
 from playwright.sync_api import expect, sync_playwright
 
@@ -20,7 +22,7 @@ with TemporaryDirectory() as directory:
             page = browser.new_page(viewport={"width": 1400, "height": 1050})
             errors = []
             page.on("pageerror", lambda error: errors.append(str(error)))
-            page.goto(f"http://127.0.0.1:{server.server_port}/")
+            page.goto(f"http://127.0.0.1:{server.server_port}/?autorun=0")
             expect(page.locator("#status")).to_contain_text("Ready.")
             assert page.locator("#scenario-form input[type=range]").count() == 12
             invalid_front = page.get_by_label("Front x (m)", exact=True)
@@ -69,16 +71,20 @@ with TemporaryDirectory() as directory:
             page.locator(".advanced summary").click()
             # Number fields remain authoritative even when the quick slider
             # cannot represent the typed precision/range.
+            expect(page.locator("#run-name")).to_have_value("Input 1")
             page.get_by_role("button", name="Run and save").click()
             expect(page.locator("#status")).to_contain_text("Loaded")
             expect(page.locator("#run-feedback")).to_contain_text("already loaded")
+            expect(page.locator("#saved option:checked")).to_have_text("Input 1")
+            expect(page.locator("#run-name")).to_have_value("Input 2")
             expect(page.locator("#run-feedback")).to_contain_text("no refresh needed")
             page.get_by_role("button", name="Go to loaded replay").click()
             expect(page.locator("#play")).to_be_focused()
-            identifier = page.locator("#status").inner_text().split()[1].rstrip(".")
-            assert identifier.startswith("frontend-")
+            (folder,) = Path(directory).glob("*-Input 1")
+            assert re.fullmatch(r"\d{8}-\d{6}-Input 1", folder.name)
+            assert (folder / "log.json").is_file()
             saved = page.request.get(
-                f"http://127.0.0.1:{server.server_port}/api/runs/{identifier}"
+                f"http://127.0.0.1:{server.server_port}/api/runs/{quote(folder.name)}"
             ).json()
             assert saved["log"]["scenario"]["initial"]["ego"]["speed_mps"] == 26.425
             assert saved["log"]["scenario"]["initial"]["front"]["x_m"] == 1234.125
@@ -126,9 +132,15 @@ with TemporaryDirectory() as directory:
             page.locator("#seek").fill("0")
             page.locator("#seek").dispatch_event("input")
             assert page.evaluate(lane_pixels) == initial, "seek must restore phase"
+            assert page.locator("#saved option").count() == 3
+            page.locator("#saved").select_option(label="Input 1")
+            page.get_by_role("button", name="Load saved run").click()
+            expect(page.locator("#status")).to_contain_text("Loaded 20")
+            # A reload is a new session: earlier runs stay on disk but leave the list.
             page.reload()
             expect(page.locator("#status")).to_contain_text("Ready.")
-            assert page.locator("#saved option").count() == 3
+            assert page.locator("#saved option").count() == 0
+            expect(page.locator("#run-name")).to_have_value("Input 1")
             page.set_viewport_size({"width": 390, "height": 844})
             assert page.evaluate(
                 "() => document.documentElement.scrollWidth <= innerWidth"
@@ -138,8 +150,17 @@ with TemporaryDirectory() as directory:
                 for role in ("Ego", "Front", "Cut-in")
             ]
             assert len({box["y"] for box in mobile}) == 1
-            page.get_by_role("button", name="Load saved run").click()
-            expect(page.locator("#status")).to_contain_text("Loaded")
+            # A plain page load runs the default scenario and shows its replay.
+            auto = browser.new_page(viewport={"width": 1400, "height": 1050})
+            auto.on("pageerror", lambda error: errors.append(str(error)))
+            auto.goto(f"http://127.0.0.1:{server.server_port}/")
+            expect(auto.locator("#status")).to_contain_text("Loaded")
+            expect(auto.locator("#assessment")).to_contain_text("ego collision: false")
+            expect(auto.locator("#play")).to_be_enabled()
+            expect(auto.locator("#saved option:checked")).to_have_text("default")
+            assert auto.locator("#saved option").count() == 1, "only this session's runs"
+            expect(auto.locator("#run-feedback")).to_be_hidden()
+            assert not (Path(directory) / "default").exists(), "default is never saved"
             assert not errors, errors
             browser.close()
             print("Chromium smoke passed: forms, metrics, replay, persistence/reload")
