@@ -3,16 +3,16 @@
 import json
 import re
 from dataclasses import asdict
-from datetime import UTC, datetime
+from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from importlib.resources import files
 from pathlib import Path
 from threading import Lock
-from urllib.parse import urlsplit
+from urllib.parse import unquote, urlsplit
 from uuid import uuid4
 
 from cutin.application import run_scenario, save_run
-from cutin.application.storage import load_run_documents
+from cutin.application.storage import _run_documents, load_run_documents
 from cutin.core import ScenarioConfig
 from cutin.evaluation import EvaluationConfig
 from cutin.evaluation.config import validate_evaluation_config
@@ -20,9 +20,25 @@ from cutin.interfaces.web.validation import validate_initial_clearance
 from cutin.simulation import SimulatorConfig
 from cutin.simulation.config import validate_simulator_config
 
-ID = re.compile(r"[A-Za-z0-9_-]{1,64}\Z")
+ID = re.compile(r"[A-Za-z0-9_-]+(?: [A-Za-z0-9_-]+)*\Z")
+RESERVED_NAME = "default"  # Shown by the UI on load, never saved.
 MAX_BODY = 64 * 1024
 MAX_ARTIFACT = 16 * 1024 * 1024
+MAX_NAME = 40
+
+
+def clean_name(value) -> str:
+    """Run name that doubles as its folder name: letters, digits, space, _ and -."""
+    if not isinstance(value, str):
+        raise ValueError("name must be text")
+    name = " ".join(value.split())
+    if not 1 <= len(name) <= MAX_NAME or not ID.fullmatch(name):
+        raise ValueError(
+            f"name must be 1..{MAX_NAME} characters: letters, digits, spaces, _ or -"
+        )
+    if name.casefold() == RESERVED_NAME:
+        raise ValueError(f'"{RESERVED_NAME}" is reserved for the built-in default run')
+    return name
 
 
 class WebServer(ThreadingHTTPServer):
@@ -36,7 +52,7 @@ class WebServer(ThreadingHTTPServer):
         super().__init__(("127.0.0.1", port), Handler)
 
     def run_directory(self, identifier: str) -> Path:
-        if not ID.fullmatch(identifier):
+        if len(identifier) > 64 or not ID.fullmatch(identifier):
             raise ValueError("invalid run id")
         directory = self.directory / identifier
         if not directory.resolve().is_relative_to(self.directory):
@@ -135,7 +151,7 @@ class Handler(BaseHTTPRequestHandler):
             self.respond(200, {"ids": ids})
         elif path.startswith("/api/runs/"):
             try:
-                directory = self.server.run_directory(path.removeprefix("/api/runs/"))
+                directory = self.server.run_directory(unquote(path.removeprefix("/api/runs/")))
                 for name in ("log", "metrics"):
                     if (directory / f"{name}.json").stat().st_size > MAX_ARTIFACT:
                         raise ValueError("artifact exceeds replay size limit")
@@ -172,10 +188,16 @@ class Handler(BaseHTTPRequestHandler):
                 "scenario",
                 "simulator",
                 "evaluation",
+                "name",
+                "save",
             }:
                 raise ValueError(
                     "request needs scenario and optional simulator/evaluation"
                 )
+            save = payload.get("save", True)
+            if not isinstance(save, bool):
+                raise ValueError("save must be true or false")
+            name = clean_name(payload["name"]) if "name" in payload and save else None
             scenario = ScenarioConfig.from_dict(payload["scenario"])
             validate_initial_clearance(scenario)
             simulator = SimulatorConfig(**payload.get("simulator", {}))
@@ -197,10 +219,21 @@ class Handler(BaseHTTPRequestHandler):
             return
         try:
             result = self.server.workflow(scenario, simulator, evaluation)
-            timestamp = datetime.now(UTC).strftime("%Y%m%d-%H%M%SZ")
-            identifier = f"frontend-{timestamp}-{uuid4().hex[:8]}"
+            if not save:  # Built-in default: replayed in the page, nothing on disk.
+                documents = _run_documents(result)
+                preview = {"log": documents["log.json"], "metrics": documents["metrics.json"]}
+                self.respond(200, json.loads(json.dumps(preview, allow_nan=False)))
+                return
+            stamp = datetime.now().strftime("%Y%m%d-%H%M%S")  # Local time.
+            identifier = f"{stamp}-{name}" if name else f"frontend-{stamp}-{uuid4().hex[:8]}"
+            if identifier.casefold() in {
+                path.name.casefold() for path in self.server.directory.iterdir()
+            }:
+                raise ValueError(f'run "{identifier}" already exists; try again')
             save_run(result, self.server.directory / identifier)
-            self.respond(201, {"id": identifier, "metrics": asdict(result.metrics)})
+            self.respond(
+                201, {"id": identifier, "name": name, "metrics": asdict(result.metrics)}
+            )
         except (ValueError, TypeError) as error:
             self.respond(400, {"error": str(error)})
         except Exception:

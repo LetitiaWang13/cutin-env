@@ -131,7 +131,12 @@ async function start() {
   function draw() {
     const canvas = $('road'), ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    if (!record?.log.entries.length) return;
+    if (!record?.log.entries.length) {
+      ctx.fillStyle = '#8b98a5'; ctx.font = '500 15px system-ui, sans-serif'; ctx.textAlign = 'center';
+      ctx.fillText(record ? 'This run has no replay samples' : 'Run a scenario to see its replay here', canvas.width / 2, canvas.height / 2 + 5);
+      ctx.textAlign = 'start';
+      return;
+    }
     const snapshot = record.log.entries[index].snapshot;
     const ego = snapshot.vehicles.find(v => v.role === 'ego');
     const scale = 8, originX = (ego?.x_m || 0) - canvas.width * 0.25 / scale;
@@ -141,7 +146,7 @@ async function start() {
     const y = world => canvas.height / 2 + (world - laneWidth) * scale;
     const startX = Math.max(0, Math.min(canvas.width, x(0)));
     const endX = Math.max(0, Math.min(canvas.width, x(road.length_m)));
-    ctx.fillStyle = '#586067';
+    ctx.fillStyle = '#3b434b';
     ctx.fillRect(startX, y(-laneWidth / 2), endX - startX, laneWidth * road.lane_count * scale);
     ctx.strokeStyle = '#edf0ef';
     ctx.lineDashOffset = laneDashOffset(originX, scale, startX);
@@ -159,7 +164,7 @@ async function start() {
       ctx.strokeStyle = '#101923'; ctx.strokeRect(-v.length_m * scale / 2, -v.width_m * scale / 2, v.length_m * scale, v.width_m * scale);
       ctx.restore();
     });
-    ctx.fillStyle = '#fff';
+    ctx.fillStyle = '#fff'; ctx.font = '600 12px system-ui, sans-serif';
     snapshot.vehicles.forEach(v => ctx.fillText(v.role, x(v.x_m) - 16, y(v.y_m) - 16));
     $('seek').value = index;
     $('clock').textContent = `tick ${snapshot.tick} · ${(snapshot.tick / hz).toFixed(3)} s`;
@@ -184,15 +189,30 @@ async function start() {
     message(`Loaded ${id}. ${record.log.entries.length ? 'Click Play to start recorded replay; no refresh needed.' : 'No replay samples; check termination and diagnostics.'} Complete does not mean safe.`);
     draw();
   }
-  async function refresh(selected = '') {
-    const {ids} = await request('/api/runs');
-    $('saved').replaceChildren(...ids.map(id => {
-      const option = document.createElement('option'); option.value = option.textContent = id; return option;
+  // The built-in "default" run is recomputed on load and kept only in memory;
+  // saved runs live in the runs folder, one subfolder per name.
+  let defaultRecord = null, defaultError = '', sessionRuns = [], nameEdited = false;
+  const runUrl = id => `/api/runs/${encodeURIComponent(id)}`;
+  // Next "Input N" counts only this page session's runs, so every session starts at Input 1.
+  function nextInputName() {
+    const used = sessionRuns.map(run => /^input (\d+)$/i.exec(run.name)).filter(Boolean).map(match => Number(match[1]));
+    return `Input ${Math.max(0, ...used) + 1}`;
+  }
+  // The dropdown lists only this session's runs; the runs folder keeps every saved run.
+  function refresh(selected = '') {
+    const options = (defaultRecord ? [{id: 'default', name: 'default'}] : []).concat(sessionRuns);
+    $('saved').replaceChildren(...options.map(run => {
+      const option = document.createElement('option'); option.value = run.id; option.textContent = run.name; return option;
     }));
     if (selected) $('saved').value = selected;
+    if (!nameEdited) $('run-name').value = nextInputName();
   }
+  $('run-name').addEventListener('input', () => { nameEdited = true; });
+  async function loadById(id) { show(id === 'default' ? defaultRecord : await request(runUrl(id)), id); }
   $('scenario-form').addEventListener('submit', async event => {
     event.preventDefault();
+    const name = $('run-name').value.trim().replace(/\s+/g, ' ') || nextInputName();
+    if (name.toLowerCase() === 'default' || sessionRuns.some(run => run.name.toLowerCase() === name.toLowerCase())) { feedback(`The name "${name}" is already used in this session. Pick another name.`, 'error'); return; }
     if (busy || updatePositions().length) return;
     busy = true; $('run').disabled = true; $('run').textContent = 'Running and saving…';
     $('go-replay').hidden = true;
@@ -200,13 +220,15 @@ async function start() {
     pause(); message('Computing and saving run…');
     try {
       fields.forEach(([path]) => set(input, path, Number(document.querySelector(`[data-path="${path}"]`).value)));
-      const result = await request('/api/runs', {method: 'POST', headers: {'Content-Type': 'application/json', 'X-Cutin-Request': '1'}, body: JSON.stringify(input)});
-      const saved = await request(`/api/runs/${result.id}`);
+      const result = await request('/api/runs', {method: 'POST', headers: {'Content-Type': 'application/json', 'X-Cutin-Request': '1'}, body: JSON.stringify({...input, name})});
+      const saved = await request(runUrl(result.id));
       show(saved, result.id);
       const hasSamples = !!saved.log.entries.length;
-      feedback(`Saved ${result.id}. ${hasSamples ? 'The replay and Metrics on the right are already loaded. Click Play to begin; no refresh needed.' : 'The saved run has no replay samples. Check its termination and diagnostics on the right.'}`, saved.log.termination_reason === 'error' ? 'error' : 'success');
+      feedback(`Saved "${result.id}" in the runs folder. ${hasSamples ? 'The replay and Metrics above are already loaded. Click Play to begin; no refresh needed.' : 'The saved run has no replay samples. Check its termination and diagnostics above.'}`, saved.log.termination_reason === 'error' ? 'error' : 'success');
       $('go-replay').hidden = !hasSamples;
-      try { await refresh(result.id); } catch (error) { message(`Replay loaded, but saved-list refresh failed: ${error.message}`); }
+      nameEdited = false;
+      sessionRuns.push({id: result.id, name});
+      refresh(result.id);
     } catch (error) { feedback(`Run failed: ${error.message}`, 'error'); message(error.message); }
     finally { busy = false; $('run').textContent = 'Run and save'; updatePositions(); }
   });
@@ -215,9 +237,9 @@ async function start() {
     $('play').focus({preventScroll: true});
   };
   $('baseline').onclick = () => preset(); $('unsafe').onclick = () => preset(true);
-  $('refresh').onclick = () => refresh().catch(error => message(error.message));
+  $('refresh').onclick = () => refresh($('saved').value);
   $('load').onclick = async () => {
-    try { const id = $('saved').value; if (id) show(await request(`/api/runs/${id}`), id); }
+    try { const id = $('saved').value; if (id) await loadById(id); }
     catch (error) { message(error.message); }
   };
   $('play').onclick = () => { if (playing) pause(); else { if (index === record.log.entries.length - 1) {index = 0; time = 0;} playing = true; last = null; $('play').textContent = 'Pause'; } };
@@ -278,7 +300,17 @@ async function start() {
     controls.set(path, {number, sync});
     $(group).append(field);
   });
-  try { defaults = await request('/api/defaults'); preset(); await refresh(); message('Ready. Run a scenario or load a saved run/search winner.'); }
+  draw();
+  try { defaults = await request('/api/defaults'); preset();
+    // The built-in default is computed for display only; ?autorun=0 skips it (used by the smoke script).
+    if (new URLSearchParams(location.search).get('autorun') !== '0') {
+      try { defaultRecord = await request('/api/runs', {method: 'POST', headers: {'Content-Type': 'application/json', 'X-Cutin-Request': '1'}, body: JSON.stringify({...input, save: false})}); }
+      catch (error) { defaultError = error.message; }
+    }
+    refresh();
+    if (defaultRecord) { $('saved').value = 'default'; show(defaultRecord, 'default'); }
+    else message(defaultError ? `Default run failed: ${defaultError}. Restart "cutin web" so the server matches this page.` : 'Ready. Run a scenario or load a saved run/search winner.');
+  }
   catch (error) { message(error.message); $('run').disabled = true; }
 }
 
