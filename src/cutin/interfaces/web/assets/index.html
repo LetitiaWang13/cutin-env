@@ -52,13 +52,13 @@
       </fieldset>
       <div class="side-sets">
         <fieldset><legend>Experiment</legend><div id="experiment-fields" class="field-grid"></div></fieldset>
-        <fieldset hidden><legend>Cut-in maneuver</legend><div id="cut-in-maneuver-fields" class="field-grid"></div>
-          <p class="hint">Start and reference duration are independent. Actual completion depends on tracking; the merge may extend beyond the horizon.</p>
-        </fieldset>
       </div>
     </div>
-    <details class="advanced"><summary>Advanced: numerical rates and warning thresholds</summary>
+    <details class="advanced"><summary>Advanced: cut-in maneuver, numerical rates and warning thresholds</summary>
       <div class="adv-grid">
+        <fieldset><legend>Cut-in maneuver</legend><div id="cut-in-maneuver-fields" class="field-grid"></div>
+          <p class="hint">Start and reference duration are independent. Actual completion depends on tracking; the merge may extend beyond the horizon.</p>
+        </fieldset>
         <fieldset><legend>Numerical rates</legend><div id="numerical-fields" class="field-grid"></div><p class="hint">Controller Hz must divide physics Hz; the horizon must span whole physics ticks.</p></fieldset>
         <fieldset><legend>Evaluation warnings</legend><div id="evaluation-fields" class="field-grid"></div><p class="hint">Warnings do not change simulation or collision-first search ranking.</p></fieldset>
       </div>
