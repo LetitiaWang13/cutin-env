@@ -17,13 +17,13 @@ dependencies = [
 ]
 
 [project.scripts]
-cutin = "cutin.interfaces.cli:main"
+cutin-mvp = "cutin_mvp.interfaces.cli:main"
 
 [dependency-groups]
 dev = ["pytest>=8,<10", "ruff>=0.11,<1"]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/cutin"]
+packages = ["src/cutin", "src/cutin_mvp"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

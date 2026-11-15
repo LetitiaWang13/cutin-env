@@ -1,1 +1,1 @@
-"""Command-line and future HTTP adapters to application workflows."""
+"""CLI and Web entry points for the shared user workflow."""

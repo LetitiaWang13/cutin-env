@@ -9,7 +9,7 @@ from urllib.parse import quote
 
 from playwright.sync_api import expect, sync_playwright
 
-from cutin.interfaces.web.server import WebServer
+from cutin_mvp.interfaces.web.server import WebServer
 
 with TemporaryDirectory() as directory:
     server = WebServer(Path(directory), 0)
@@ -158,7 +158,9 @@ with TemporaryDirectory() as directory:
             expect(auto.locator("#assessment")).to_contain_text("ego collision: false")
             expect(auto.locator("#play")).to_be_enabled()
             expect(auto.locator("#saved option:checked")).to_have_text("default")
-            assert auto.locator("#saved option").count() == 1, "only this session's runs"
+            assert auto.locator("#saved option").count() == 1, (
+                "only this session's runs"
+            )
             expect(auto.locator("#run-feedback")).to_be_hidden()
             assert not (Path(directory) / "default").exists(), "default is never saved"
             assert not errors, errors

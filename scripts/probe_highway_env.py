@@ -6,14 +6,14 @@ import tomllib
 from dataclasses import asdict
 from pathlib import Path
 
-from cutin.core import ControlAction, Role, ScenarioConfig
-from cutin.simulation import SimulatorConfig, simulate
+from cutin_mvp.core import ControlAction, Role, ScenarioConfig
+from cutin_mvp.simulation import SimulatorConfig, simulate
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "scenario", nargs="?", type=Path, default=Path("examples/baseline.toml")
+        "scenario", nargs="?", type=Path, default=Path("examples/mvp/baseline.toml")
     )
     parser.add_argument("--steps", type=int, default=30)
     parser.add_argument(
