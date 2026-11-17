@@ -9,7 +9,7 @@ from urllib.parse import quote
 
 from playwright.sync_api import expect, sync_playwright
 
-from cutin_mvp.interfaces.web.server import WebServer
+from cutin.interfaces.web.server import WebServer
 
 with TemporaryDirectory() as directory:
     server = WebServer(Path(directory), 0)
@@ -82,42 +82,45 @@ with TemporaryDirectory() as directory:
             expect(page.locator("#play")).to_be_focused()
             (folder,) = Path(directory).glob("*-Input 1")
             assert re.fullmatch(r"\d{8}-\d{6}-Input 1", folder.name)
-            assert (folder / "log.json").is_file()
+            assert (folder / "record.json").is_file()
             saved = page.request.get(
                 f"http://127.0.0.1:{server.server_port}/api/runs/{quote(folder.name)}"
             ).json()
-            assert saved["log"]["scenario"]["initial"]["ego"]["speed_mps"] == 26.425
-            assert saved["log"]["scenario"]["initial"]["front"]["x_m"] == 1234.125
+            assert saved["record"]["scenario"]["ego"]["speed_mps"] == 26.425
+            assert saved["record"]["scenario"]["front"]["x_m"] == 1234.125
             page.get_by_role("button", name="Unsafe regression").click()
-            expect(front).to_have_value("110")
+            expect(front).to_have_value("170")
             expect(page.locator("#position-errors")).to_be_hidden()
             expect(page.get_by_role("button", name="Run and save")).to_be_enabled()
             expect(page.locator(".front .precision-hint").first).to_be_hidden()
             expect(page.get_by_label("Front x (m) slider", exact=True)).to_have_value(
-                "110"
+                "170"
             )
             page.get_by_role("button", name="Run and save").click()
             expect(page.locator("#status")).to_contain_text("Loaded")
             assert "ego collision: true" in page.locator("#assessment").inner_text()
-            page.locator("#seek").fill("18")
+            # The collision ends the run, so the last recorded tick is the seek max.
+            last_tick = page.locator("#seek").get_attribute("max")
+            assert 0 < int(last_tick) < 200
+            page.locator("#seek").fill(last_tick)
             page.locator("#seek").dispatch_event("input")
-            assert "tick 18" in page.locator("#clock").inner_text()
+            assert f"tick {last_tick} " in page.locator("#clock").inner_text()
             if os.environ.get("CUTIN_SMOKE_SCREENSHOT"):
                 page.screenshot(
                     path=os.environ["CUTIN_SMOKE_SCREENSHOT"], full_page=True
                 )
             page.get_by_role("button", name="Play", exact=True).click()
             expect(page.locator("#play")).to_have_text("Play")
-            assert "tick 18" in page.locator("#clock").inner_text()
+            assert f"tick {last_tick} " in page.locator("#clock").inner_text()
             page.get_by_role("button", name="Baseline", exact=True).click()
             page.get_by_role("button", name="Run and save").click()
             expect(page.locator("#assessment")).to_contain_text("ego collision: false")
-            assert page.locator("#seek").get_attribute("max") == "300"
+            assert page.locator("#seek").get_attribute("max") == "360"
             # Only lane pixels: ignore vehicle bodies/labels so camera motion
             # cannot pass this regression merely by moving another vehicle.
             lane_pixels = """() => {
               const ctx = document.getElementById('road').getContext('2d');
-              const pixels = ctx.getImageData(0, 114, 210, 1).data;
+              const pixels = ctx.getImageData(0, 118, 210, 1).data;
               return Array.from({length:210}, (_, x) => pixels[x * 4] > 140);
             }"""
             initial = page.evaluate(lane_pixels)
@@ -125,15 +128,16 @@ with TemporaryDirectory() as directory:
             page.locator("#seek").dispatch_event("input")
             moved = page.evaluate(lane_pixels)
             assert initial != moved, "lane markings must move in the ego camera"
-            # At 25 m/s and 30 Hz, the first-tick displacement is ~6.67 px
+            # At 25 m/s, 30 Hz and 6 px/m, the first-tick displacement is 5 px
             # left. Avoid the subpixel transition pixels at segment boundaries.
-            assert moved[6] and not initial[6]
-            assert initial[25] and not moved[25]
+            assert initial[11] and not moved[11]
+            assert moved[25] and not initial[25]
             page.locator("#seek").fill("0")
             page.locator("#seek").dispatch_event("input")
             assert page.evaluate(lane_pixels) == initial, "seek must restore phase"
             assert page.locator("#saved option").count() == 3
             page.locator("#saved").select_option(label="Input 1")
+            expect(page.locator("#status")).to_contain_text("-Input 1.")
             page.get_by_role("button", name="Load saved run").click()
             expect(page.locator("#status")).to_contain_text("Loaded 20")
             # A reload is a new session: earlier runs stay on disk but leave the list.
