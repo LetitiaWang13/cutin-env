@@ -1,25 +1,22 @@
 # Cut-in scenario generator
 
 A course project for risky cut-in scenario generation using STL/robustness-based
-falsification and Bayesian optimization. The repository separates a working MVP
-from a replacement framework under development.
+falsification and Bayesian optimization. The framework lives in `src/cutin/` and is under development.
 
 See [DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md) for component work blocks,
 shared-interface decisions, and the next integration milestones.
 
 ## Status
 
-- `src/cutin_mvp/`: working MVP, moved without changing its simulation/search logic.
-- `tests/mvp/`: the corresponding MVP tests.
 - `src/cutin/`: concrete scenario/record models, native IDM, four-phase cut-in,
   and the headless highway-env adapter are implemented. Generation, metrics, and
-  CLI/Web remain explicit `NotImplementedError` skeletons.
+  the CLI (only `cutin web` exists) is otherwise a skeleton. The local Web page is
+  implemented on the new package; see "Run the Web page".
 - `tests/simulation/adapters/highway_env/`: real controller and adapter integration
   tests, including complete motion records and JSON export.
 - `tests/test_skeleton.py`: public import and unimplemented-workflow smoke checks.
 
-The old scaffold branch is not used by this implementation. The new package does
-not import the MVP. Controller/execution settings and concrete scenario/record
+Controller/execution settings and concrete scenario/record
 schemas are defined. Generation, evaluation, and interface configuration sections
 remain placeholders.
 
@@ -55,8 +52,9 @@ src/cutin/
     evaluator.py                      Evaluation composition/interface
     metrics/                          TTC, LCT, robustness skeletons
   interfaces/
-    cli.py                            CLI placeholder
-    web.py                            Web placeholder
+    cli.py                            `cutin web` command; other commands pending
+    web/                              Local Web page: server, form inputs, run summary,
+                                      run folders, and assets (app.js, style.css)
 ```
 
 `highway_env` uses an underscore so it is a valid Python package name. The intended
@@ -162,23 +160,22 @@ after observed completion.
 into plain record data. The controller tests also exercise it without the adapter,
 so policy behavior and record capture can be tested separately.
 
-## Run the working MVP
+## Run the Web page
 
 ```sh
 uv sync --locked
-uv run --locked cutin-mvp --help
-uv run --locked cutin-mvp run examples/mvp/baseline.toml
-uv run --locked cutin-mvp web --port 8000 --runs-directory runs
+uv run --locked cutin web --port 8000 --runs-directory runs
 ```
 
-The scripts in `scripts/` still operate on the MVP. Its TOML examples live in
-`examples/mvp/`; the new `examples/run_simulation.py` stays at the examples root.
-MVP examples and saved artifacts retain their formats; the new framework does
-not load or convert them.
-The [historical MVP README](docs/mvp/README.md) contains the longer command and
-artifact reference, with migration substitutions noted at the top. The archived
-[design](docs/mvp/DESIGN.md), [handover](docs/mvp/HANDOVER.md), and
-[implementation plan](docs/mvp/PLAN.md) are kept alongside it.
+Open http://127.0.0.1:8000. The page runs the default scenario on load and shows it
+under "Demo Run" (kept in memory, never saved). "Run and save" writes a run folder
+`runs/<date-time>-<name>/` holding `record.json` (the full `ScenarioRecord`) and
+`metrics.json` (a Web-only display summary of collision, gap and TTC, not the
+future Evaluator). The page lists only runs from the current browser session.
+
+The archived MVP notes remain in `docs/mvp/` ([README](docs/mvp/README.md),
+[design](docs/mvp/DESIGN.md), [handover](docs/mvp/HANDOVER.md),
+[plan](docs/mvp/PLAN.md)) for history only; the MVP code has been removed.
 
 ## Checks
 
@@ -189,12 +186,11 @@ uv run --locked ruff format --check .
 uv build
 ```
 
-No new dependencies are required. Both packages ship in the existing `cutin`
-distribution; the working console command is now named `cutin-mvp`.
+No new dependencies are required.
 
 ## License
 
 [MIT](LICENSE). Dependencies retain their own licenses. Empirical falsification
 and specification satisfaction are not proofs of general safety.
 
-> Recap: The MVP remains runnable under cutin_mvp/cutin-mvp. The new package executes concrete scenarios into per-tick JSON-compatible records using native IDM and four-phase cut-in control. Evaluation, optimization, and playback remain pending.
+> Recap: The new package executes concrete scenarios into per-tick JSON-compatible records using native IDM and four-phase cut-in control. Evaluation, optimization, and playback remain pending.
