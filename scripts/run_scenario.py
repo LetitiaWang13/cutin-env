@@ -5,17 +5,17 @@ import json
 from dataclasses import asdict
 from pathlib import Path
 
-from cutin.application import load_scenario, run_scenario
-from cutin.core import TerminationReason
-from cutin.evaluation import EvaluationConfig
-from cutin.interfaces.cli import print_result, run_with_viewer
-from cutin.simulation import SimulatorConfig
+from cutin_mvp.application import load_scenario, run_scenario
+from cutin_mvp.core import TerminationReason
+from cutin_mvp.evaluation import EvaluationConfig
+from cutin_mvp.interfaces.cli import print_result, run_with_viewer
+from cutin_mvp.simulation import SimulatorConfig
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "scenario", nargs="?", type=Path, default=Path("examples/baseline.toml")
+        "scenario", nargs="?", type=Path, default=Path("examples/mvp/baseline.toml")
     )
     parser.add_argument("--output", type=Path, help="Optional JSON log; no overwrite")
     parser.add_argument(

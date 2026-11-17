@@ -6,17 +6,17 @@ import tomllib
 from pathlib import Path
 from random import Random
 
-from cutin.application import load_scenario
-from cutin.generation import RejectedSample, SearchSpace, sample
+from cutin_mvp.application import load_scenario
+from cutin_mvp.generation import RejectedSample, SearchSpace, sample
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "base", nargs="?", type=Path, default=Path("examples/baseline.toml")
+        "base", nargs="?", type=Path, default=Path("examples/mvp/baseline.toml")
     )
     parser.add_argument(
-        "--space", type=Path, default=Path("examples/search_space.toml")
+        "--space", type=Path, default=Path("examples/mvp/search_space.toml")
     )
     parser.add_argument(
         "--seed", type=int, default=17, help="Proposal RNG seed, not scenario seed"

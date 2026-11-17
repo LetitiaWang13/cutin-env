@@ -1,1 +1,1 @@
-"""Backend bridges. Only the highway-env adapter is implemented."""
+"""Backend-specific scene translation, simulation loops, and controller integration."""

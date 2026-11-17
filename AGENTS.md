@@ -4,7 +4,7 @@ focusing on control, safety, test generation/falsification
 
 ## General Requirements:
 - Provide a separate "> Recap: ..." summary paragraph
-  at the end of each round of your answer
+  at the end of each round of your answer (but don't output them to project files)
 - No matter which language is used during communication,
   write code/comments/summarization in English
 - Use Python elegantly and wisely; don't write slop Python

@@ -1,1 +1,1 @@
-"""Cut-in experiments: shared contracts without simulator or UI dependencies."""
+"""Cut-in scenario execution and records; generation and evaluation remain pending."""
