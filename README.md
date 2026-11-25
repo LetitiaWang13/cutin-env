@@ -17,8 +17,8 @@ shared-interface decisions, and the next integration milestones.
 - `tests/test_skeleton.py`: public import and unimplemented-workflow smoke checks.
 
 Controller/execution settings and concrete scenario/record schemas are defined.
-Evaluation accepts optional robustness targets. Generation and interface
-configuration sections remain placeholders.
+Generation exposes an aggressiveness level, and evaluation accepts optional
+robustness targets. Interface configuration is a placeholder.
 
 ## New package structure
 
@@ -64,8 +64,8 @@ the adapter's physics loop have separate owners. Saving and playback belong at
 the outer user-workflow boundary.
 
 The generation flow still stops explicitly at the unimplemented generator.
-Search strategies, the aggressiveness-to-target mapping, and candidate selection
-are pending. Direct simulation is available through the adapter.
+Search strategies and candidate selection are pending. Direct simulation is
+available through the adapter.
 
 ## Run a concrete scenario
 
@@ -141,13 +141,17 @@ is the elapsed time between observed merge start and completion. Unavailable
 values are `None`. Collision flags, first collision ticks, and the roles flagged
 at the first collision come from the recorded vehicle states.
 
-For robustness against a pair of upper limits, pass resolved targets to the evaluator.
-The values here illustrate the API.
+The default aggressiveness level is **5**. Its starter profile uses **1.0 s TTC**
+and **2.5 s LCT** as upper limits for experiments. Edit the translator to tune
+the profile. For a one-off experiment, pass a `RobustnessTargets` instance with
+your chosen limits directly to `EvaluationConfig`.
+[Aggressiveness translator](src/cutin/generation/optim/translators/aggressiveness.py)
 
 ```python
-from cutin.config import EvaluationConfig, RobustnessTargets
+from cutin.config import EvaluationConfig, GenerationConfig
+from cutin.generation.optim.translators.aggressiveness import AggressivenessTranslator
 
-targets = RobustnessTargets(ttc_upper_s=1.0, lct_upper_s=2.5)
+targets = AggressivenessTranslator().translate(GenerationConfig().aggressiveness)
 result = Evaluator(EvaluationConfig(robustness_targets=targets)).evaluate(record)
 ```
 

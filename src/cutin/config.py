@@ -8,6 +8,8 @@ from math import isfinite
 class GenerationConfig:
     """Generator choice, fixed conditions, aggressiveness, and optimizer settings."""
 
+    aggressiveness: int = 5
+
 
 @dataclass
 class SimulationConfig:
