@@ -10,15 +10,15 @@ shared-interface decisions, and the next integration milestones.
 
 - `src/cutin/`: concrete scenario/record models, native IDM, four-phase cut-in,
   the headless highway-env adapter, and basic trajectory evaluation are implemented.
-  The CLI serves the local Web page with `cutin web`. Scenario generation and
-  robustness scoring are pending.
+  The evaluator can score runs against supplied TTC and LCT targets. The CLI
+  serves the local Web page with `cutin web`. Scenario generation is pending.
 - `tests/simulation/adapters/highway_env/`: real controller and adapter integration
   tests, including complete motion records and JSON export.
 - `tests/test_skeleton.py`: public import and unimplemented-workflow smoke checks.
 
-Controller/execution settings and concrete scenario/record
-schemas are defined. Generation, evaluation, and interface configuration sections
-remain placeholders.
+Controller/execution settings and concrete scenario/record schemas are defined.
+Evaluation accepts optional robustness targets. Generation and interface
+configuration sections remain placeholders.
 
 ## New package structure
 
@@ -50,7 +50,7 @@ src/cutin/
           cutin.py                    Four-phase constant-speed cut-in control
   evaluation/
     evaluator.py                      Pair minima, lane-change time, collision details
-    metrics/                          TTC, LCT, and the robustness placeholder
+    metrics/                          TTC, LCT, and target robustness
   interfaces/
     cli.py                            `cutin web` command; other commands pending
     web/                              Local Web page: server, form inputs, run summary,
@@ -63,10 +63,9 @@ its translators, optimizer, simulator, and evaluator. Its optimization loop and
 the adapter's physics loop have separate owners. Saving and playback belong at
 the outer user-workflow boundary.
 
-The generation flow still stops explicitly at the unimplemented generator. Direct
-simulation is available through the adapter as shown below. No search strategy,
-robustness formula, or candidate-selection policy is implemented. The new CLI is
-not registered yet.
+The generation flow still stops explicitly at the unimplemented generator.
+Search strategies, the aggressiveness-to-target mapping, and candidate selection
+are pending. Direct simulation is available through the adapter.
 
 ## Run a concrete scenario
 
@@ -141,6 +140,23 @@ have a positive longitudinal gap and closing speed. `result.lane_change_time_s`
 is the elapsed time between observed merge start and completion. Unavailable
 values are `None`. Collision flags, first collision ticks, and the roles flagged
 at the first collision come from the recorded vehicle states.
+
+For robustness against a pair of upper limits, pass resolved targets to the evaluator.
+The values here illustrate the API.
+
+```python
+from cutin.config import EvaluationConfig, RobustnessTargets
+
+targets = RobustnessTargets(ttc_upper_s=1.0, lct_upper_s=2.5)
+result = Evaluator(EvaluationConfig(robustness_targets=targets)).evaluate(record)
+```
+
+`result.robustness` contains the two measured-minus-target margins and `score_s`,
+their maximum. The TTC margin uses the ego–cut-in pair. A negative score meets
+both strict upper limits, zero marks their boundary, and a positive score means
+at least one limit was exceeded. If either measurement is unavailable, the score
+is `None` and the result includes the reason and any available margin. Collision
+status is reported separately. Target compliance describes aggressiveness.
 
 ## Controller slice
 

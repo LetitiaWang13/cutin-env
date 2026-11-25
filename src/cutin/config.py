@@ -1,6 +1,7 @@
 """Controller/execution settings and the remaining user-facing config sections."""
 
 from dataclasses import dataclass, field
+from math import isfinite
 
 
 @dataclass
@@ -70,9 +71,27 @@ class CutInConfig:
     follow: IDMConfig = field(default_factory=IDMConfig)
 
 
+@dataclass(frozen=True)
+class RobustnessTargets:
+    """Resolved upper limits for ego–cut-in TTC and observed LCT, in seconds."""
+
+    ttc_upper_s: float
+    lct_upper_s: float
+
+    def __post_init__(self) -> None:
+        for name, value in (
+            ("ttc_upper_s", self.ttc_upper_s),
+            ("lct_upper_s", self.lct_upper_s),
+        ):
+            if isinstance(value, bool) or not isfinite(value) or value <= 0:
+                raise ValueError(f"{name} must be finite and positive")
+
+
 @dataclass
 class EvaluationConfig:
-    """Requested metrics and their evaluation parameters."""
+    """Optional targets for scoring the measured trajectory."""
+
+    robustness_targets: RobustnessTargets | None = None
 
 
 @dataclass

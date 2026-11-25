@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from cutin.config import EvaluationConfig
 from cutin.core.record import ScenarioRecord
 from cutin.evaluation.metrics import lct, ttc
+from cutin.evaluation.metrics.robustness import RobustnessResult, from_measurements
 
 
 @dataclass(frozen=True)
@@ -16,6 +17,7 @@ class EvaluationResult:
     first_collision_tick: int | None
     first_ego_collision_tick: int | None
     collision_roles: tuple[str, ...]
+    robustness: RobustnessResult | None = None
 
     @property
     def collision(self) -> bool:
@@ -31,7 +33,7 @@ class Evaluator:
         self.config = config
 
     def evaluate(self, record: ScenarioRecord) -> EvaluationResult:
-        """Compute full-episode metrics. The initial metrics need no settings."""
+        """Compute full-episode metrics and score them when targets are provided."""
         first_collision = first_ego_collision = None
         collision_roles = ()
         for frame in record.frames:
@@ -47,10 +49,19 @@ class Evaluator:
                 first_ego_collision = frame.tick
                 break
 
+        front, cutin = ttc.compute(record)
+        lane_change = lct.observe(record)
+        targets = self.config.robustness_targets
+        robustness = (
+            from_measurements(cutin.min_ttc_s, lane_change, targets)
+            if targets is not None
+            else None
+        )
         return EvaluationResult(
-            pairs=ttc.compute(record),
-            lane_change_time_s=lct.compute(record),
+            pairs=(front, cutin),
+            lane_change_time_s=lane_change.duration_s,
             first_collision_tick=first_collision,
             first_ego_collision_tick=first_ego_collision,
             collision_roles=collision_roles,
+            robustness=robustness,
         )
