@@ -9,16 +9,16 @@ shared-interface decisions, and the next integration milestones.
 ## Status
 
 - `src/cutin/`: concrete scenario/record models, native IDM, four-phase cut-in,
-  and the headless highway-env adapter are implemented. Generation, metrics, and
-  the CLI (only `cutin web` exists) is otherwise a skeleton. The local Web page is
-  implemented on the new package; see "Run the Web page".
+  the headless highway-env adapter, and basic trajectory evaluation are implemented.
+  The evaluator can score runs against supplied TTC and LCT targets. The CLI
+  serves the local Web page with `cutin web`. Scenario generation is pending.
 - `tests/simulation/adapters/highway_env/`: real controller and adapter integration
   tests, including complete motion records and JSON export.
 - `tests/test_skeleton.py`: public import and unimplemented-workflow smoke checks.
 
-Controller/execution settings and concrete scenario/record
-schemas are defined. Generation, evaluation, and interface configuration sections
-remain placeholders.
+Controller/execution settings and concrete scenario/record schemas are defined.
+Generation exposes an aggressiveness level, and evaluation accepts optional
+robustness targets. Interface configuration is a placeholder.
 
 ## New package structure
 
@@ -49,8 +49,8 @@ src/cutin/
           idm.py                      Per-vehicle native IDM wrapper
           cutin.py                    Four-phase constant-speed cut-in control
   evaluation/
-    evaluator.py                      Evaluation composition/interface
-    metrics/                          TTC, LCT, robustness skeletons
+    evaluator.py                      Pair minima, lane-change time, collision details
+    metrics/                          TTC, LCT, and target robustness
   interfaces/
     cli.py                            `cutin web` command; other commands pending
     web/                              Local Web page: server, form inputs, run summary,
@@ -63,10 +63,9 @@ its translators, optimizer, simulator, and evaluator. Its optimization loop and
 the adapter's physics loop have separate owners. Saving and playback belong at
 the outer user-workflow boundary.
 
-The generation flow still stops explicitly at the unimplemented generator. Direct
-simulation is available through the adapter as shown below. No search strategy,
-robustness formula, or candidate-selection policy is implemented. The new CLI is
-not registered yet.
+The generation flow still stops explicitly at the unimplemented generator.
+Search strategies and candidate selection are pending. Direct simulation is
+available through the adapter.
 
 ## Run a concrete scenario
 
@@ -121,9 +120,62 @@ controller Hz. The horizon ends at the first physics tick at or beyond `duration
 
 There is no generic input validation, error recovery, or road-exit assessment in
 this slice; scenes are assumed to fit the finite road, and backend exceptions
-propagate. No TTC/LCT/robustness is stored or computed yet. Repeated execution is
+propagate. The record contains motion and event data. Repeated execution is
 tested in the same code/dependency environment; cross-version/platform bitwise
 identity is not promised. Record-based playback has not been implemented yet.
+
+## Evaluate a record
+
+```python
+from cutin.config import EvaluationConfig
+from cutin.evaluation.evaluator import Evaluator
+
+result = Evaluator(EvaluationConfig()).evaluate(record)
+```
+
+`result.pairs` gives minimum longitudinal bumper gap and minimum TTC for ego–front
+and ego–cut-in over the recorded episode, along with the ticks at which they
+occurred. TTC is available when the vehicles' lateral bounds overlap and they
+have a positive longitudinal gap and closing speed. `result.lane_change_time_s`
+is the elapsed time between observed merge start and completion. Unavailable
+values are `None`. Collision flags, first collision ticks, and the roles flagged
+at the first collision come from the recorded vehicle states.
+
+Each pair's `ttc_unavailable_counts` shows how many recorded frames were excluded
+from TTC, grouped by the first applicable reason: `no_lateral_overlap`,
+`nonpositive_gap`, `not_closing`, or `invalid_ttc` for an unrepresentable TTC or
+closing speed. Counts are also included in Web runs under **Recorded metrics and
+provenance** and in `metrics.json`.
+
+The evaluator supports five experimental aggressiveness levels. The default is
+**5**. To meet a level, both measured values must be strictly below its limits.
+
+| Aggressiveness | Minimum ego–cut-in TTC upper limit (s) | Observed LCT upper limit (s) |
+| --- | ---: | ---: |
+| 1 | 11.2 | 4.2 |
+| 2 | 8.0 | 3.7 |
+| 3 | 4.9 | 3.4 |
+| 4 | 3.0 | 3.1 |
+| 5 | 2.0 | 2.8 |
+
+Edit the translator to tune the profiles. For a one-off experiment, pass a
+`RobustnessTargets` instance with your chosen limits directly to `EvaluationConfig`.
+[Aggressiveness translator](src/cutin/generation/optim/translators/aggressiveness.py)
+
+```python
+from cutin.config import EvaluationConfig, GenerationConfig
+from cutin.generation.optim.translators.aggressiveness import AggressivenessTranslator
+
+targets = AggressivenessTranslator().translate(GenerationConfig().aggressiveness)
+result = Evaluator(EvaluationConfig(robustness_targets=targets)).evaluate(record)
+```
+
+`result.robustness` contains the two measured-minus-target margins and `score_s`,
+their maximum. The TTC margin uses the ego–cut-in pair. A negative score meets
+both strict upper limits, zero marks their boundary, and a positive score means
+at least one limit was exceeded. If either measurement is unavailable, the score
+is `None` and the result includes the reason and any available margin. Collision
+status is reported separately. Target compliance describes aggressiveness.
 
 ## Controller slice
 
@@ -170,8 +222,8 @@ uv run --locked cutin web --port 8000 --runs-directory runs
 Open http://127.0.0.1:8000. The page runs the default scenario on load and shows it
 under "Demo Run" (kept in memory, never saved). "Run and save" writes a run folder
 `runs/<date-time>-<name>/` holding `record.json` (the full `ScenarioRecord`) and
-`metrics.json` (a Web-only display summary of collision, gap and TTC, not the
-future Evaluator). The page lists only runs from the current browser session.
+`metrics.json` (a Web display summary based on the evaluator's collision, gap,
+and TTC results). The page lists only runs from the current browser session.
 
 The archived MVP notes remain in `docs/mvp/` ([README](docs/mvp/README.md),
 [design](docs/mvp/DESIGN.md), [handover](docs/mvp/HANDOVER.md),
@@ -192,5 +244,3 @@ No new dependencies are required.
 
 [MIT](LICENSE). Dependencies retain their own licenses. Empirical falsification
 and specification satisfaction are not proofs of general safety.
-
-> Recap: The new package executes concrete scenarios into per-tick JSON-compatible records using native IDM and four-phase cut-in control. Evaluation, optimization, and playback remain pending.

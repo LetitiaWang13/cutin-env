@@ -1,1 +1,1 @@
-"""Metric formulas; semantics will be agreed before implementation."""
+"""Metric calculations over recorded trajectories."""
