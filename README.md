@@ -147,10 +147,19 @@ from TTC, grouped by the first applicable reason: `no_lateral_overlap`,
 closing speed. Counts are also included in Web runs under **Recorded metrics and
 provenance** and in `metrics.json`.
 
-The default aggressiveness level is **5**. Its starter profile uses **1.0 s TTC**
-and **2.5 s LCT** as upper limits for experiments. Edit the translator to tune
-the profile. For a one-off experiment, pass a `RobustnessTargets` instance with
-your chosen limits directly to `EvaluationConfig`.
+The evaluator supports five experimental aggressiveness levels. The default is
+**5**. To meet a level, both measured values must be strictly below its limits.
+
+| Aggressiveness | Minimum ego–cut-in TTC upper limit (s) | Observed LCT upper limit (s) |
+| --- | ---: | ---: |
+| 1 | 11.2 | 4.2 |
+| 2 | 8.0 | 3.7 |
+| 3 | 4.9 | 3.4 |
+| 4 | 3.0 | 3.1 |
+| 5 | 2.0 | 2.8 |
+
+Edit the translator to tune the profiles. For a one-off experiment, pass a
+`RobustnessTargets` instance with your chosen limits directly to `EvaluationConfig`.
 [Aggressiveness translator](src/cutin/generation/optim/translators/aggressiveness.py)
 
 ```python

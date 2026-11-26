@@ -2,16 +2,20 @@
 
 from cutin.config import RobustnessTargets
 
-# Starter profile for experiments. Both values are strict upper limits in seconds.
+# Experimental profiles in increasing aggressiveness. Both are strict upper limits.
 _PROFILES = {
-    5: RobustnessTargets(ttc_upper_s=1.0, lct_upper_s=2.5),
+    1: RobustnessTargets(ttc_upper_s=11.2, lct_upper_s=4.2),
+    2: RobustnessTargets(ttc_upper_s=8.0, lct_upper_s=3.7),
+    3: RobustnessTargets(ttc_upper_s=4.9, lct_upper_s=3.4),
+    4: RobustnessTargets(ttc_upper_s=3.0, lct_upper_s=3.1),
+    5: RobustnessTargets(ttc_upper_s=2.0, lct_upper_s=2.8),
 }
 
 
 class AggressivenessTranslator:
     def translate(self, aggressiveness: int) -> RobustnessTargets:
         """Return the targets for a configured aggressiveness level."""
-        targets = _PROFILES.get(aggressiveness)
+        targets = _PROFILES.get(aggressiveness) if type(aggressiveness) is int else None
         if targets is None:
             levels = ", ".join(str(level) for level in sorted(_PROFILES))
             raise ValueError(
