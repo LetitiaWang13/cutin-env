@@ -141,6 +141,12 @@ is the elapsed time between observed merge start and completion. Unavailable
 values are `None`. Collision flags, first collision ticks, and the roles flagged
 at the first collision come from the recorded vehicle states.
 
+Each pair's `ttc_unavailable_counts` shows how many recorded frames were excluded
+from TTC, grouped by the first applicable reason: `no_lateral_overlap`,
+`nonpositive_gap`, `not_closing`, or `invalid_ttc` for an unrepresentable TTC or
+closing speed. Counts are also included in Web runs under **Recorded metrics and
+provenance** and in `metrics.json`.
+
 The default aggressiveness level is **5**. Its starter profile uses **1.0 s TTC**
 and **2.5 s LCT** as upper limits for experiments. Edit the translator to tune
 the profile. For a one-off experiment, pass a `RobustnessTargets` instance with

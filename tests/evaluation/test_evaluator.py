@@ -8,7 +8,7 @@ from cutin.config import EvaluationConfig, RobustnessTargets, SimulationConfig
 from cutin.core.record import Frame, ScenarioRecord, VehicleState
 from cutin.evaluation.evaluator import Evaluator
 from cutin.evaluation.metrics import robustness
-from cutin.evaluation.metrics.ttc import PairMinima
+from cutin.evaluation.metrics.ttc import PairMinima, TTCUnavailableCounts
 from cutin.interfaces.web.inputs import default_scenario
 
 
@@ -47,7 +47,9 @@ def test_evaluation_reports_pair_minima_and_first_ticks(record):
 
     assert result.pairs == (
         PairMinima("front", 10.0, 1, 2.0, 1),
-        PairMinima("cutin", 10.0, 1, 2.0, 1),
+        PairMinima(
+            "cutin", 10.0, 1, 2.0, 1, TTCUnavailableCounts(no_lateral_overlap=1)
+        ),
     )
     assert result.lane_change_time_s is None
     assert not result.collision
@@ -62,9 +64,41 @@ def test_ttc_is_unavailable_for_separating_or_laterally_disjoint_pairs(record):
     result = Evaluator(EvaluationConfig()).evaluate(replace(record, frames=[frame]))
 
     assert result.pairs == (
-        PairMinima("front", 15.0, 0, None, None),
-        PairMinima("cutin", None, None, None, None),
+        PairMinima("front", 15.0, 0, None, None, TTCUnavailableCounts(not_closing=1)),
+        PairMinima(
+            "cutin", None, None, None, None, TTCUnavailableCounts(no_lateral_overlap=1)
+        ),
     )
+
+
+def test_ttc_counts_the_first_exclusion_reason_for_each_frame(record):
+    frame = record.frames[1]
+    cutin = frame.cutin
+    cutin_states = (
+        replace(cutin, x_m=-4, y_m=0),
+        replace(cutin, x_m=-4, speed_mps=25),
+        replace(cutin, speed_mps=25),
+        replace(cutin, speed_mps=float("inf")),
+        cutin,
+    )
+    frames = [
+        replace(frame, tick=tick, cutin=state)
+        for tick, state in enumerate(cutin_states)
+    ]
+
+    result = Evaluator(EvaluationConfig()).evaluate(replace(record, frames=frames))
+
+    assert result.pairs[1] == PairMinima(
+        "cutin",
+        -1.0,
+        1,
+        2.0,
+        4,
+        TTCUnavailableCounts(
+            no_lateral_overlap=1, nonpositive_gap=1, not_closing=1, invalid_ttc=1
+        ),
+    )
+    assert not result.collision
 
 
 def test_lane_change_time_uses_observed_events(record):

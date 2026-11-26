@@ -29,6 +29,8 @@ def test_horizon_run_without_collision_is_complete_not_safe(record):
     assert front["min_gap_m"] == pytest.approx(55.0)
     assert front["min_ttc_s"] is None  # Equal speeds never close.
     assert cut_in["min_gap_m"] is None  # Never overlapping laterally.
+    assert front["ttc_unavailable_counts"]["not_closing"] == 3
+    assert cut_in["ttc_unavailable_counts"]["no_lateral_overlap"] == 3
 
 
 def test_ego_collision_terminates_with_flags_and_warnings(record):
