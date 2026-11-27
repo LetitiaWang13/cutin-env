@@ -19,6 +19,12 @@ dependencies = [
 [project.scripts]
 cutin = "cutin.interfaces.cli:main"
 
+[project.optional-dependencies]
+bo = [
+    "scikit-learn>=1.8,<2",
+    "scipy>=1.13,<2",
+]
+
 [dependency-groups]
 dev = ["pytest>=8,<10", "ruff>=0.11,<1"]
 
