@@ -9,8 +9,9 @@ shared-interface decisions, and the next integration milestones.
 ## Status
 
 - `src/cutin/`: concrete scenario/record models, native IDM, four-phase cut-in,
-  and the headless highway-env adapter are implemented. Generation, metrics, and
-  the CLI (only `cutin web` exists) is otherwise a skeleton. The local Web page is
+  and the headless highway-env adapter are implemented. The BO proposal/update
+  component is implemented; generation integration, metrics, and the CLI (only
+  `cutin web` exists) are otherwise a skeleton. The local Web page is
   implemented on the new package; see "Run the Web page".
 - `tests/simulation/adapters/highway_env/`: real controller and adapter integration
   tests, including complete motion records and JSON export.
@@ -39,7 +40,7 @@ src/cutin/
       optimizers/
         interface.py                  Candidate proposal/feedback interface
         random/optimizer.py           RandomOptimizer skeleton
-        bo/optimizer.py               BOOptimizer skeleton
+        bo/optimizer.py               Sequential GP/EI proposal and feedback
   simulation/
     interface.py                      Simulator interface
     adapters/
@@ -64,9 +65,10 @@ the adapter's physics loop have separate owners. Saving and playback belong at
 the outer user-workflow boundary.
 
 The generation flow still stops explicitly at the unimplemented generator. Direct
-simulation is available through the adapter as shown below. No search strategy,
-robustness formula, or candidate-selection policy is implemented. The new CLI is
-not registered yet.
+simulation is available through the adapter as shown below. BO candidate proposal
+and scalar feedback are implemented, but the complete search workflow, robustness
+formula, and final result-selection policy remain pending. See
+[the BO component guide](docs/BO_OPTIMIZER.md) for dependencies and usage.
 
 ## Run a concrete scenario
 
